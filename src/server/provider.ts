@@ -2,6 +2,13 @@ import { createHash } from "node:crypto";
 import type { Provider } from "./types";
 
 export type ProviderConfig = { baseUrl: string; apiKey: string; chatModel: string; embeddingBaseUrl: string; embeddingApiKey: string; embeddingModel: string };
+export class ModelHttpError extends Error {
+  constructor(readonly status: number) {
+    super(status === 429
+      ? "模型服务繁忙或请求受限（HTTP 429），请稍后重试。"
+      : `模型服务返回HTTP ${status}，请检查模型名称、认证及额度。`);
+  }
+}
 export function readProviderConfig(): ProviderConfig {
   return {
     baseUrl: process.env.AI_BASE_URL?.trim() || "",
@@ -33,7 +40,7 @@ export class ApiProvider implements Provider {
         body: JSON.stringify(body), signal: AbortSignal.timeout(30_000), redirect: "error",
       });
     } catch { throw new Error("模型服务连接失败或超时，请检查服务地址与网络后重试。"); }
-    if (!response.ok) throw new Error(`模型服务返回HTTP ${response.status}，请检查模型名称、认证及额度。`);
+    if (!response.ok) throw new ModelHttpError(response.status);
     try { return await response.json() as Record<string, unknown>; }
     catch { throw new Error("模型服务未返回有效JSON，不能使用该结果。"); }
   }
@@ -52,8 +59,11 @@ export class ApiProvider implements Provider {
 
   async generate(system: string, user: string) {
     if (!this.chatReady) throw new Error("尚未配置文本模型。");
+    // 智谱免费模型直接回答，避免有限输出额度被深度思考占满。
+    const zhipuFlash = /^https:\/\/open\.bigmodel\.cn(?::443)?(?:\/|$)/i.test(this.config.baseUrl) && this.config.chatModel.toLowerCase() === "glm-4.7-flash";
     const json = await this.request(this.config.baseUrl, this.config.apiKey, "chat/completions", {
       model: this.config.chatModel, temperature: 0.1, max_tokens: 1600,
+      ...(zhipuFlash ? { thinking: { type: "disabled" } } : {}),
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
     });
     const choices = json.choices as { message?: { content?: unknown } }[] | undefined;

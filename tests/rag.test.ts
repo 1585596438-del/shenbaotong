@@ -74,6 +74,31 @@ test("合法模型回答附真实引用，API失败仍保留正文", async () =>
   } finally { env.close(); }
 });
 
+test("模型限流只有限重试，恢复后可引用作答，持续繁忙时提示稍后重试", async () => {
+  const { answerQuestion } = await import("../src/server/rag");
+  const { ModelHttpError } = await import("../src/server/provider");
+  const env = await setup();
+  try {
+    const chunk = env.store.getChunks([env.first.document.id])[0];
+    let calls = 0;
+    const provider = { chatReady: true, embeddingReady: false, embeddingKey: "none", async embed() { return []; }, async generate() {
+      calls++;
+      if (calls === 1) throw new ModelHttpError(429);
+      return JSON.stringify({ hasEvidence: true, answer: "团队最多三人。", citations: [chunk.id] });
+    } };
+    const recovered = await answerQuestion({ question: "团队人数" }, env.store, provider);
+    assert.equal(recovered.mode, "generated");
+    assert.equal(calls, 2);
+    calls = 0;
+    provider.generate = async () => { calls++; throw new ModelHttpError(429); };
+    const busy = await answerQuestion({ question: "团队人数" }, env.store, provider);
+    assert.equal(busy.mode, "extractive");
+    assert.equal(calls, 2);
+    assert.ok(busy.warnings.some(w => w.includes("HTTP 429") && w.includes("稍后重试")));
+    assert.ok(busy.citations.every(c => c.documentId === env.first.document.id));
+  } finally { env.close(); }
+});
+
 test("余弦检索拒绝维度不一致或非有限向量", async () => {
   const { cosineSimilarity } = await import("../src/server/retrieval");
   assert.equal(cosineSimilarity([1, 0], [1, 0]), 1);
@@ -120,6 +145,33 @@ test("兼容接口按索引还原向量顺序，不接受错误索引或泄露�
   } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });
 
+test("智谱免费模型关闭深度思考，其他模型与服务不携带专属参数", async () => {
+  const { ApiProvider } = await import("../src/server/provider");
+  const originalFetch = globalThis.fetch;
+  const requests: { url: string; body: Record<string, unknown> }[] = [];
+  globalThis.fetch = async (input, init) => {
+    requests.push({ url: String(input), body: JSON.parse(String(init?.body)) });
+    return Response.json({ choices: [{ message: { content: '{"hasEvidence":false,"answer":"","citations":[]}' } }] });
+  };
+  try {
+    for (const [baseUrl, chatModel] of [
+      ["https://open.bigmodel.cn/api/paas/v4", "glm-4.7-flash"],
+      ["https://example.com/v1", "glm-4.7-flash"],
+      ["https://open.bigmodel.cn/api/paas/v4", "other-model"],
+    ]) {
+      const provider = new ApiProvider({ baseUrl, chatModel, apiKey: "test-secret", embeddingBaseUrl: "", embeddingApiKey: "", embeddingModel: "" });
+      assert.equal(provider.embeddingReady, false);
+      const reply = await provider.generate("只能按原文作答", "竞赛资料");
+      assert.equal(JSON.parse(reply).hasEvidence, false);
+    }
+    assert.equal(requests[0].url, "https://open.bigmodel.cn/api/paas/v4/chat/completions");
+    assert.deepEqual(requests[0].body.thinking, { type: "disabled" });
+    assert.equal(requests[1].body.thinking, undefined);
+    assert.equal(requests[2].body.thinking, undefined);
+    assert.deepEqual(requests[0].body.messages, [{ role: "system", content: "只能按原文作答" }, { role: "user", content: "竞赛资料" }]);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test("模型更换后不使用旧向量，未知文档范围直接拒绝", async () => {
   const { answerQuestion } = await import("../src/server/rag");
   const env = await setup();
@@ -159,6 +211,26 @@ test("索引后可做混合检索，模型收到年度与阶段，答案只含�
     const answer = await answerQuestion({ question: "团队人数", documentIds: [env.first.document.id] }, env.store, provider);
     assert.equal(answer.mode, "generated"); assert.equal(answer.retrievalMode, "hybrid");
     assert.equal(answer.citations[0].page, 2);
+  } finally { env.close(); }
+});
+
+test("跨页政策证据按原文顺序交给模型，检索评分不能倒置条款续页", async () => {
+  const { answerQuestion } = await import("../src/server/rag");
+  const env = await setup();
+  try {
+    const policy = env.store.importDocument({ title: "跨页政策测试", sourceUrl: "", kind: "policy", year: "2023", stage: "", competition: "", fileName: "policy.txt", pages: [
+      { page: 4, text: "B类认定：国际学术团体主办的具有重要影响力的国际竞赛，包括联合国教" },
+      { page: 5, text: "科文组织主办的竞赛。C类认定：B类竞赛的省分赛或分区赛。" },
+    ] });
+    const provider = { chatReady: true, embeddingReady: false, embeddingKey: "none", async embed() { return []; }, async generate(_system: string, user: string) {
+      const { passages } = JSON.parse(user);
+      assert.deepEqual(passages.map((p: { page: number }) => p.page), [4, 5]);
+      return JSON.stringify({ hasEvidence: true, answer: "B类包括具有重要影响力的国际竞赛；B类的省分赛属于C类。", citations: [passages[0].id] });
+    } };
+    const answer = await answerQuestion({ question: "B类竞赛认定，省分赛或分区赛", documentIds: [policy.document.id] }, env.store, provider);
+    assert.equal(answer.mode, "generated");
+    assert.deepEqual(answer.citations.map(c => c.page).sort(), [4, 5]);
+    assert.ok(answer.warnings.some(w => w.includes("续页原文")));
   } finally { env.close(); }
 });
 
