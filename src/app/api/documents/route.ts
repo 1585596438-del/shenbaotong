@@ -5,6 +5,7 @@ import { MAX_FILE_BYTES, parseDocument } from "@/server/documents";
 import { ApiProvider } from "@/server/provider";
 import { indexDocument } from "@/server/rag";
 import type { DocumentKind } from "@/server/types";
+import { getCapture } from "@/server/webpages";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,14 +20,17 @@ export async function POST(request: Request) {
     if (!["catalog", "policy", "notice", "rule"].includes(kind)) throw new Error("资料类型不正确。");
     const file = form.get("file");
     const pasted = textField(form.get("text"), "正文", 1_000_000);
+    const captureId = textField(form.get("captureId"), "抓取预览", 80);
+    if (captureId && (pasted || (file instanceof File && file.size))) throw new Error("网页抓取不能同时上传文件或粘贴正文。");
+    const captured = captureId ? getCapture(captureId) : null;
     if (file instanceof File && file.size && pasted) throw new Error("请选择上传文件或粘贴正文其中一种方式。");
     const uploaded = file instanceof File && file.size > 0;
-    const pages = uploaded ? await parseDocument(new Uint8Array(await file.arrayBuffer()), file.name) : [{ page: null, text: pasted }];
+    const pages = captured?.pages ?? (uploaded ? await parseDocument(new Uint8Array(await file.arrayBuffer()), file.name) : [{ page: null, text: pasted }]);
     const store = getStore();
     const result = store.importDocument({ title, kind, pages,
-      sourceUrl: sourceUrl(form.get("sourceUrl")), year: textField(form.get("year"), "年份", 40),
+      sourceUrl: captured?.sourceUrl ?? sourceUrl(form.get("sourceUrl")), year: textField(form.get("year"), "年份", 40),
       stage: textField(form.get("stage"), "阶段", 80), competition: textField(form.get("competition"), "赛事名称", 160),
-      fileName: uploaded ? file.name : "粘贴正文.txt",
+      fileName: captured?.fileName ?? (uploaded ? file.name : "粘贴正文.txt"),
     });
     const warnings: string[] = [];
     const provider = new ApiProvider();

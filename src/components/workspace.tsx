@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { Answer, Citation, KnowledgeDocument, Chunk } from "@/server/types";
+import type { WebCapture } from "@/server/webpages";
 
 type Status = { documents: KnowledgeDocument[]; answers: Answer[]; model: { chatReady: boolean; embeddingReady: boolean; chatModel: string; embeddingModel: string; embeddingKey: string } };
 type Detail = KnowledgeDocument & { chunks: Omit<Chunk, "embedding" | "embeddingKey">[] };
@@ -28,7 +29,12 @@ export function Workspace() {
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [importMode, setImportMode] = useState<"file" | "text">("file");
+  const [importMode, setImportMode] = useState<"file" | "text" | "url">("file");
+  const [importTitle, setImportTitle] = useState("");
+  const [webUrl, setWebUrl] = useState("");
+  const [dynamicWeb, setDynamicWeb] = useState(false);
+  const [crawling, setCrawling] = useState(false);
+  const [capture, setCapture] = useState<WebCapture | null>(null);
   const [activeAnswer, setActiveAnswer] = useState<string | null>(null);
   const [preview, setPreview] = useState<Detail | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -43,6 +49,9 @@ export function Workspace() {
     setSelected(ids => ids.filter(id => current.documents.some(d => d.id === id)));
   }
   useEffect(() => { refresh().catch(e => setError(e.message)); }, []);
+  useEffect(() => {
+    if (importing) { setImportTitle(""); setCapture(null); setWebUrl(""); setDynamicWeb(false); }
+  }, [importing]);
   useEffect(() => {
     const conversation = document.querySelector<HTMLElement>(".conversation");
     if (conversation) conversation.scrollTop = conversation.scrollHeight;
@@ -60,7 +69,7 @@ export function Workspace() {
     const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href]') ?? []);
     if (!dialog?.contains(document.activeElement)) focusable()[0]?.focus();
     const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !uploading) { setImporting(false); setPreview(null); }
+      if (event.key === "Escape" && !uploading && !crawling) { setImporting(false); setPreview(null); }
       if (event.key === "Tab") {
         const items = focusable(), first = items[0], last = items.at(-1);
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -69,7 +78,7 @@ export function Workspace() {
     };
     document.addEventListener("keydown", close);
     return () => { document.removeEventListener("keydown", close); document.body.style.overflow = previousOverflow; previous?.focus(); };
-  }, [importing, preview, uploading]);
+  }, [importing, preview, uploading, crawling]);
 
   async function ask(event: FormEvent) {
     event.preventDefault();
@@ -84,6 +93,7 @@ export function Workspace() {
   }
   async function importDocument(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (uploading || crawling || (importMode === "url" && !capture)) return;
     setUploading(true); setError(""); setNotice("");
     try {
       const result = await api<{ document: KnowledgeDocument; duplicate: boolean; warnings: string[] }>("/api/documents", { method: "POST", body: new FormData(event.currentTarget) });
@@ -92,6 +102,16 @@ export function Workspace() {
       setImporting(false); setTab("library");
     } catch (e) { setError(e instanceof Error ? e.message : "导入失败。"); }
     finally { setUploading(false); }
+  }
+  async function fetchWebpage(url = webUrl, attachment = false) {
+    if (crawling || uploading || !url.trim()) return;
+    setCrawling(true); setCapture(null); setError(""); setNotice("");
+    if (attachment) { setWebUrl(url); setDynamicWeb(false); }
+    try {
+      const result = await api<WebCapture>("/api/webpages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, dynamic: attachment ? false : dynamicWeb }) });
+      setCapture(result); setImportTitle(result.title);
+    } catch (e) { setError(e instanceof Error ? e.message : "网页抓取失败。"); }
+    finally { setCrawling(false); }
   }
   async function openSource(id: string, chunkId?: string) {
     try {
@@ -150,7 +170,33 @@ export function Workspace() {
         {tab === "settings" && <section className="settings"><div className="settings-card"><h2>当前运行状态</h2><dl><dt>文本模型</dt><dd>{status?.model.chatReady ? status.model.chatModel : "未配置 · 展示原文片段"}</dd><dt>嵌入模型</dt><dd>{status?.model.embeddingReady ? status.model.embeddingModel : "未配置 · 使用关键词检索"}</dd><dt>数据保存</dt><dd>本机 SQLite 数据库</dd></dl><p className="settings-note">配置状态表示参数齐全。实际连接结果会在提问和建立索引时检查。</p></div><div className="settings-card"><h2>连接模型服务</h2><p>将项目根目录的 <code>.env.example</code> 复制为 <code>.env.local</code>，在本机填写兼容接口的服务地址、密钥和模型名，然后重启服务。</p><pre>{"AI_BASE_URL=服务接口基础地址（含实际API前缀）\nAI_API_KEY=在本机填写\nAI_CHAT_MODEL=文本模型名称\n\nEMBEDDING_BASE_URL=嵌入接口基础地址\nEMBEDDING_API_KEY=在本机填写\nAI_EMBEDDING_MODEL=嵌入模型名称"}</pre><p>嵌入服务地址及密钥留空时沿用文本服务配置。配置后进入资料库，为文档建立索引。更换嵌入模型后需要重新索引。</p><button className="outline" onClick={() => refresh().catch(e => setError(e.message))}>刷新运行状态</button></div><div className="settings-card"><h2>资料与答案的边界</h2><p>目录收录、学校认定和当年比赛要求应分别查证。历史附件无法证明当前报名时间。没有公开网址的本地资料显示文档标题与页码，系统不会编造网址。</p><p>支持含文字层 PDF、TXT、Markdown 与粘贴正文。单文件最多10MB、50页；扫描件暂不支持识别。</p></div></section>}
       </div>
     </main>
-    {importing && <div className="modal-backdrop"><section className="modal import-modal" role="dialog" aria-modal="true" aria-labelledby="import-title"><div className="modal-heading"><div><p className="eyebrow">ADD SOURCE</p><h2 id="import-title">导入知识资料</h2></div><button className="close-button" aria-label="关闭导入窗口" disabled={uploading} onClick={() => setImporting(false)}>×</button></div><p className="modal-description">保留真实来源与年度，让后续回答可以核对。</p>{error && <p className="alert error" role="alert">{error}</p>}<form onSubmit={importDocument}><label className="field">文档标题 <input name="title" required maxLength={160} placeholder="例如：2024年B类竞赛目录" autoFocus /></label><div className="form-row"><label className="field">资料类型<select name="kind" defaultValue="notice">{Object.entries(kinds).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label><label className="field">资料年份<input name="year" maxLength={40} placeholder="如 2024，未明确可留空" /></label></div><div className="form-row"><label className="field">赛事名称<input name="competition" maxLength={160} placeholder="多赛事目录可留空" /></label><label className="field">比赛阶段<input name="stage" maxLength={80} placeholder="如 校赛 / 省赛 / 国赛" /></label></div><label className="field">来源网址 <span className="optional">可选</span><input name="sourceUrl" type="url" maxLength={2000} placeholder="完整通知网址，没有公开网址可留空" /></label><div className="import-tabs"><button type="button" className={importMode === "file" ? "active" : ""} onClick={() => setImportMode("file")}>上传文件</button><button type="button" className={importMode === "text" ? "active" : ""} onClick={() => setImportMode("text")}>粘贴正文</button></div>{importMode === "file" ? <label className="file-field">选择 PDF / TXT / MD 文件<input type="file" name="file" accept=".pdf,.txt,.md" required /><small>含文字层 PDF · 最多10MB / 50页</small></label> : <label className="field">资料正文<textarea name="text" rows={7} required maxLength={1_000_000} placeholder="粘贴通知原文，保留完整条款。" /></label>}<div className="modal-footer"><span>正文先保存，配置模型后可建立向量索引</span><button className="primary" type="submit" disabled={uploading}>{uploading ? "解析并保存中…" : "导入资料"}</button></div></form></section></div>}
+    {importing && <div className="modal-backdrop"><section className="modal import-modal" role="dialog" aria-modal="true" aria-labelledby="import-title">
+      <div className="modal-heading"><div><p className="eyebrow">ADD SOURCE</p><h2 id="import-title">导入知识资料</h2></div><button className="close-button" aria-label="关闭导入窗口" disabled={uploading || crawling} onClick={() => setImporting(false)}>×</button></div>
+      <p className="modal-description">保留真实来源与年度，让后续回答可以核对。</p>
+      {error && <p className="alert error" role="alert">{error}</p>}
+      <form onSubmit={importDocument}>
+        <div className="import-tabs">{([["file", "上传文件"], ["text", "粘贴正文"], ["url", "网址抓取"]] as const).map(([mode, label]) => <button key={mode} type="button" disabled={uploading || crawling} className={importMode === mode ? "active" : ""} onClick={() => { setImportMode(mode); setError(""); }}>{label}</button>)}</div>
+        {importMode === "url" && <div className="web-capture">
+          <label className="field">通知或规则网址<input type="url" value={webUrl} disabled={crawling || uploading} onChange={e => { setWebUrl(e.target.value); setCapture(null); }} maxLength={2000} placeholder="https://… 官方通知页面或 PDF 链接" /></label>
+          <div className="crawl-toolbar"><label><input type="checkbox" checked={dynamicWeb} disabled={crawling || uploading} onChange={e => { setDynamicWeb(e.target.checked); setCapture(null); }} />动态网页（正文缺失时可勾选重试）</label><button className="outline small" type="button" disabled={crawling || uploading || !webUrl.trim()} onClick={() => fetchWebpage()}>{crawling ? "正在读取网页…" : capture ? "重新抓取" : "抓取正文"}</button></div>
+          {crawling && <p className="loading" role="status">正在读取正文和附件链接，动态页面可能需要几十秒…</p>}
+          {capture && <div className="crawl-preview">
+            <p className="crawl-meta">{({ html: "网页正文", browser: "动态网页正文", pdf: "PDF 附件" })[capture.method]} · {capture.text.length.toLocaleString()} 字符{capture.pageCount ? ` · ${capture.pageCount} 页` : ""}<a href={capture.sourceUrl} target="_blank" rel="noopener noreferrer">核对原网页 ↗</a></p>
+            <label className="field">抓取正文预览<textarea readOnly rows={8} value={capture.text} /></label>
+            {capture.warnings.map(w => <p className="crawl-warning" key={w}>{w}</p>)}
+            {!!capture.attachments.length && <div className="crawl-attachments"><strong>页面附件</strong>{capture.attachments.map(a => <div key={a.url}><a href={a.url} target="_blank" rel="noopener noreferrer">{a.title || "下载附件"} ↗</a>{a.pdf && <button type="button" className="text-button" disabled={uploading || crawling} onClick={() => fetchWebpage(a.url, true)}>抓取此 PDF</button>}</div>)}</div>}
+            <input type="hidden" name="captureId" value={capture.captureId} />
+          </div>}
+        </div>}
+        <label className="field">文档标题<input name="title" required maxLength={160} value={importTitle} onChange={e => setImportTitle(e.target.value)} placeholder="例如：2024年B类竞赛目录" /></label>
+        <div className="form-row"><label className="field">资料类型<select name="kind" defaultValue="notice">{Object.entries(kinds).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label><label className="field">资料年份<input name="year" maxLength={40} placeholder="如 2026，按通知内容填写" /></label></div>
+        <div className="form-row"><label className="field">赛事名称<input name="competition" maxLength={160} placeholder="多赛事目录可留空" /></label><label className="field">比赛阶段<input name="stage" maxLength={80} placeholder="如 校赛 / 省赛 / 国赛" /></label></div>
+        {importMode !== "url" && <label className="field">来源网址<span className="optional">可选</span><input name="sourceUrl" type="url" maxLength={2000} placeholder="完整通知网址，没有公开网址可留空" /></label>}
+        {importMode === "file" && <label className="file-field">选择 PDF / TXT / MD 文件<input type="file" name="file" accept=".pdf,.txt,.md" required /><small>含文字层 PDF · 最多10MB / 50页</small></label>}
+        {importMode === "text" && <label className="field">资料正文<textarea name="text" rows={7} required maxLength={1_000_000} placeholder="粘贴通知原文，保留完整条款。" /></label>}
+        <div className="modal-footer"><span>{importMode === "url" ? "核对正文、资料年份和阶段后入库" : "正文先保存，配置模型后可建立向量索引"}</span><button className="primary" type="submit" disabled={uploading || crawling || (importMode === "url" && !capture)}>{uploading ? "解析并保存中…" : importMode === "url" ? "确认入库" : "导入资料"}</button></div>
+      </form>
+    </section></div>}
     {preview && <div className="modal-backdrop"><section className="modal source-modal" role="dialog" aria-modal="true" aria-labelledby="source-title"><div className="modal-heading"><div><p className="eyebrow">ORIGINAL SOURCE</p><h2 id="source-title">{preview.title}</h2></div><button className="close-button" aria-label="关闭原文窗口" onClick={() => setPreview(null)}>×</button></div><div className="source-meta">{preview.year || "年份未标注"} · {kinds[preview.kind]} · {preview.fileName}{preview.sourceUrl && <a href={preview.sourceUrl} target="_blank" rel="noopener noreferrer">打开来源网址 ↗</a>}</div><div className="source-scroll">{preview.chunks.map(c => <article id={`source-${c.id}`} className={c.id === highlight ? "source-passage highlighted" : "source-passage"} key={c.id}><h3>{location(c)}</h3><p>{c.text}</p></article>)}</div></section></div>}
   </div>;
 }
