@@ -12,6 +12,42 @@ async function setup() {
   return { store, first, close() { store.close(); rmSync(root, { recursive: true, force: true }); } };
 }
 
+test("真实引用中的同校限制不能被模型改为允许跨校", async () => {
+  const { answerQuestion } = await import("../src/server/rag");
+  const env = await setup();
+  try {
+    const doc=env.store.importDocument({title:"校际规则",sourceUrl:"https://example.edu/team",kind:"rule",year:"2026",stage:"全国",competition:"校际规则",fileName:"rule.txt",pages:[{page:null,text:"团队由3名学生和1名指导教师组成，学生及指导教师需来自同一所高校。"}]}).document;
+    const chunk=env.store.getChunks([doc.id])[0];
+    const provider={chatReady:true,embeddingReady:false,embeddingKey:"none",async embed(){return [];},async generate(){return JSON.stringify({hasEvidence:true,answer:"可以跨学校组队。",citations:[chunk.id]});}};
+    const answer=await answerQuestion({question:"团队学生和指导教师是否可以跨学校组队？",documentIds:[doc.id]},env.store,provider);
+    assert.equal(answer.mode,"extractive");
+    assert.ok(answer.warnings.some(w=>w.includes("规则结论需核对")));
+    assert.ok(answer.citations[0].text.includes("同一所高校"));
+    provider.generate=async()=>JSON.stringify({hasEvidence:true,answer:"不可以跨学校组队，需来自同一所高校。",citations:[chunk.id]});
+    assert.equal((await answerQuestion({question:"学生和指导教师能否跨学校组队",documentIds:[doc.id]},env.store,provider)).mode,"generated");
+  } finally {env.close();}
+});
+
+test("明确有同届替代通知时，日程检索排除旧通知，资格检索仍保留", async () => {
+  const { answerQuestion } = await import("../src/server/rag");
+  const env = await setup();
+  try {
+    const input={title:"旧通知",sourceUrl:"https://example.edu/original",kind:"notice" as const,year:"2026",competition:"样例赛事",fileName:"old.txt",stage:"原始通知",pages:[{page:null,text:"报名截止时间2026年3月10日16:00。参赛对象为本科生，团队人数不超过三人。"}]};
+    const original=env.store.importDocument(input).document;
+    const update=env.store.importDocument({...input,title:"调整通知",sourceUrl:"https://example.edu/update",stage:"调整通知；替代原报名时间",pages:[{page:null,text:"报名截止时间延长至2026年3月30日16:00。"}]}).document;
+    const latest=await answerQuestion({question:"报名截止时间",documentIds:[original.id,update.id]},env.store,null);
+    assert.ok(latest.citations.length && latest.citations.every(c=>c.documentId===update.id));
+    const eligibility=await answerQuestion({question:"参赛对象本科生",documentIds:[original.id,update.id]},env.store,null);
+    assert.ok(eligibility.citations.some(c=>c.documentId===original.id));
+    const scoped=await answerQuestion({question:"报名截止时间",documentIds:[original.id]},env.store,null);
+    assert.ok(scoped.citations.some(c=>c.documentId===original.id));
+    const anotherYear=env.store.importDocument({...input,title:"下一年",year:"2027",stage:"原始通知",pages:[{page:null,text:"报名截止时间2027年4月10日16:00。"}]}).document;
+    const nextYear=await answerQuestion({question:"报名截止时间2027年",documentIds:[anotherYear.id,update.id]},env.store,null);
+    assert.ok(nextYear.citations.some(c=>c.documentId===anotherYear.id));
+  } finally {env.close();}
+});
+
+
 test("没有API配置只返回原文证据，明确标记原文检索", async () => {
   const { answerQuestion } = await import("../src/server/rag");
   const env = await setup();

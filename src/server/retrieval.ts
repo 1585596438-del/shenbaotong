@@ -22,9 +22,11 @@ export function rankChunks(question: string, chunks: Chunk[], queryVector?: numb
   const ranked = chunks.map(chunk => {
     const body = normalize(chunk.text);
     const chunkTerms = new Set(terms(chunk.text));
+    const title = normalize(chunk.title);
     let hit = 0;
     for (const term of queryTerms) {
       if (chunkTerms.has(term) || (term.length > 1 && body.includes(normalize(term)))) hit++;
+      else if (term.length > 1 && title.includes(normalize(term))) hit += 0.5;
       else if (term.length >= 3 && /^[\p{Script=Han}]+$/u.test(term)) {
         const bigrams = Array.from({ length: term.length - 1 }, (_, i) => term.slice(i, i + 2));
         hit += bigrams.filter(s => body.includes(s)).length / bigrams.length * 0.5;

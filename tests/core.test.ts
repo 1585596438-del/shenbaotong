@@ -68,6 +68,17 @@ test("通用赛事名称词不能让虚构赛事匹配无关目录", async () =>
   assert.deepEqual(rankChunks("中国大学生虚构不存在大赛", chunks), []);
 });
 
+test("规则正文未重复赛事名时，标题仍能支持跨赛事召回", async () => {
+  const { rankChunks } = await import("../src/server/retrieval");
+  const chunks = [
+    { id: "ai", documentId: "ai-doc", title: "2026人工智能创意赛参赛指南", text: "本届竞赛不限专业，可单人或自由组队，人数不超过3人，允许跨学校组队。", page: null, paragraph: 1, embedding: null, embeddingKey: null },
+    { id: "software", documentId: "software-doc", title: "2026中国软件杯报名说明", text: "每队4名成员，含指导教师1名，允许跨院校组队，学生总数不超过3名。", page: null, paragraph: 1, embedding: null, embeddingKey: null },
+  ];
+  const result = rankChunks("2026软件杯和2026人工智能创意赛都允许跨院校组队吗？两者学生人数上限相同吗？请分别回答。", chunks);
+  assert.ok(result.some(c => c.id === "ai"));
+  assert.ok(result.some(c => c.id === "software"));
+});
+
 test("分块边界保留整行表格，超长表格行有明确策略", async () => {
   const { splitPages } = await import("../src/server/chunking");
   const row = "| 全国计算机设计赛 | 本科生 | 3人 |";
