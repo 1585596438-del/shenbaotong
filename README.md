@@ -69,6 +69,25 @@ RAG_DATA_DIR=./data
 
 密钥不会发送到浏览器，`.env.local` 已被Git忽略。没有模型配置时页面显示“原文检索模式”，只给出相关原文片段；不会伪装成已接入大模型。只配置文本模型时可在关键词检索基础上生成引用问答；只配置嵌入模型时可以混合检索并展示原文。
 
+### OpenAI / GPT配置示例
+
+项目使用OpenAI API的GPT模型生成回答，并使用独立嵌入模型检索资料。配置模板已默认提供以下非密钥字段：
+
+```dotenv
+AI_BASE_URL=https://api.openai.com/v1
+AI_API_KEY=
+AI_CHAT_MODEL=gpt-4.1-mini
+EMBEDDING_BASE_URL=
+EMBEDDING_API_KEY=
+AI_EMBEDDING_MODEL=text-embedding-3-small
+```
+
+在OpenAI开发者平台创建API密钥，将密钥填入本机 `.env.local` 的 `AI_API_KEY`。嵌入地址和密钥留空会沿用文本服务。账户需要具备对应模型的API使用权限和可用额度；API按用量计费。当前项目仍通过标准API密钥认证，不使用ChatGPT网页登录会话。
+
+修改配置后，停止原服务再运行 `npm run start`；在“资料库”对两份附件分别点击“建立索引”，然后测试带出处的问答。参数配置完成不代表已经验证真实连接，需要索引和问答请求成功后确认。
+
+依据：[OpenAI API认证](https://developers.openai.com/api/reference/overview)、[GPT-4.1 mini](https://developers.openai.com/api/docs/models/gpt-4.1-mini)、[text-embedding-3-small](https://developers.openai.com/api/docs/models/text-embedding-3-small)、[API计费](https://developers.openai.com/api/docs/pricing)。
+
 ## 提交GitHub与比赛演示
 
 - GitHub提交源码及空值的 `.env.example` 配置模板；本机真实密钥填写在 `.env.local`。忽略规则已排除 `.env*`，仅允许 `.env.example` 入库。
