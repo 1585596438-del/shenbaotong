@@ -69,6 +69,16 @@ RAG_DATA_DIR=./data
 
 密钥不会发送到浏览器，`.env.local` 已被Git忽略。没有模型配置时页面显示“原文检索模式”，只给出相关原文片段；不会伪装成已接入大模型。只配置文本模型时可在关键词检索基础上生成引用问答；只配置嵌入模型时可以混合检索并展示原文。
 
+## 提交GitHub与比赛演示
+
+- GitHub提交源码及空值的 `.env.example` 配置模板；本机真实密钥填写在 `.env.local`。忽略规则已排除 `.env*`，仅允许 `.env.example` 入库。
+- 密钥由 `src/server/provider.ts` 在服务端读取。网页调用项目后端，后端再请求模型服务；不要为密钥使用 `NEXT_PUBLIC_` 前缀，也不要在前端代码、截图或日志中填写真实密钥。
+- 评委克隆源码后，按启动与模型配置步骤填写自己的本机配置即可。没有密钥也可以运行原文检索。当前 `data/` 不提交Git，因此克隆后需从自己持有的资料重新导入；比赛材料若允许共享附件，可另行准备资料包和导入说明。
+- 如需要在线演示，在部署服务器或托管平台的环境变量设置中填写密钥；项目当前仅支持单人本机运行，公开部署的身份认证与访问控制需要另行实现。
+- 如果真实密钥曾进入提交历史或被推送，先在模型服务商处撤销或轮换该密钥，再清理Git历史；仅删除当前文件不能消除历史记录。
+
+参考：[Next.js环境变量说明](https://nextjs.org/docs/app/guides/environment-variables)、[GitHub敏感信息移除说明](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository)。
+
 ## 验证
 
 ```powershell
