@@ -270,6 +270,30 @@ test("explicit software group mismatch cannot be overridden by a matching subjec
   } finally { f.cleanup(); }
 });
 
+test("matching group cannot override a different track family and shared family notices remain applicable", () => {
+  const f = competitionFixture();
+  try {
+    const original = f.store.competitions.getDetail(f.createEvent());
+    const ruleBody: RuleBody = { ...body(), sources: [{ documentId: f.document.id, confirmed: true, applicabilityNote: "人工核实2026具体赛道与组别" }] };
+    const software = { competition: original.competition, event: { ...original.event, trackName: "软件赛Python A组" } };
+    const hardware = { ...software, event: { ...software.event, trackName: "硬件赛 A组" } };
+    for (const [detail, title] of [
+      [software, "2026测试赛事硬件赛 A组规则"],
+      [software, "2026测试赛事电子赛 A组规则"],
+      [hardware, "2026测试赛事软件赛Python A组规则"],
+    ] as const) {
+      const source = { ...f.document, title };
+      assert.ok(collectSourceIssues(detail, ruleBody, [], new Map([[source.id, source]])).some(issue => issue.fieldPath === "sources"), title);
+    }
+    for (const detail of [software, hardware]) {
+      for (const title of ["2026测试赛事软件赛、硬件赛 A组时间通知", "2026测试赛事软件赛、硬件赛 A/B组通用规则", "2026测试赛事A/B组通用通知"]) {
+        const source = { ...f.document, title };
+        assert.deepEqual(collectSourceIssues(detail, ruleBody, [], new Map([[source.id, source]])), [], `${detail.event.trackName}: ${title}`);
+      }
+    }
+  } finally { f.cleanup(); }
+});
+
 test("SQLite rule initialization preserves sources and persists competition events after reopening", () => {
   const f = competitionFixture();
   try {

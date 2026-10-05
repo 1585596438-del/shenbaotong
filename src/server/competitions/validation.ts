@@ -215,7 +215,7 @@ function yearRanges(text: string): Array<[number, number]> {
   return Array.from(text.matchAll(/(20\d{2})(?:\s*[-—–~～至/]\s*(20\d{2}))?/g), match => [Number(match[1]), Number(match[2] ?? match[1])]);
 }
 
-const trackMarkers = /软件赛|硬件赛|电子赛|人工智能赛|软件应用与开发|数字媒体设计|大数据应用|信息可视化设计|(?:[A-Z]组)|(?:[A-Z]类)/gi;
+const trackFamilyMarkers = /软件赛|硬件赛|电子赛|人工智能赛|软件应用与开发|数字媒体设计|大数据应用|信息可视化设计/gi;
 const stageMarkers = /校赛|省赛|全国总决赛|全国赛|国赛|总决赛|初赛|复赛|决赛/g;
 function stages(text: string): string[] {
   return Array.from(text.matchAll(stageMarkers), match => /^(全国总决赛|全国赛|国赛|总决赛)$/.test(match[0]) ? "国赛" : match[0]);
@@ -250,7 +250,7 @@ export function collectSourceIssues(detail: Pick<EventDetail, "competition" | "e
       // Expand explicit shared group notation before matching individual group markers.
       const trackText = scopeText.replace(/([A-Z](?:\s*[/、与和]\s*[A-Z])+)(组|类)/gi,
         (_, letters: string, suffix: string) => (letters.match(/[A-Z]/gi) ?? []).map(letter => `${letter}${suffix}`).join("、"));
-      const tracks = Array.from(trackText.matchAll(trackMarkers), match => match[0].toLowerCase());
+      const tracks = Array.from(trackText.matchAll(trackFamilyMarkers), match => match[0].toLowerCase());
       const eventTrack = event.trackName.toLowerCase();
       if (tracks.length && !tracks.some(track => eventTrack.includes(track) || track.includes(eventTrack))) add("sources", "来源明确赛道与当前赛道不相符");
       const sourceGroups = Array.from(trackText.matchAll(/[A-Z](?:组|类)/gi), match => match[0].toLowerCase());
