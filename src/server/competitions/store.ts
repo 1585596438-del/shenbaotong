@@ -210,6 +210,47 @@ export class CompetitionStore {
     })());
   }
 
+  invalidateDocument(documentId: string): void {
+    this.execute(() => this.db.transaction(() => {
+      // Scan selected sources as well as citations: a source need not back a field yet.
+      const rows = this.db.prepare("SELECT * FROM competition_rule_versions").all() as VersionRow[];
+      const now = new Date().toISOString();
+      const update = this.db.prepare(`UPDATE competition_rule_versions
+        SET status=?,bodyJson=?,editRevision=editRevision+?,updatedAt=? WHERE id=?`);
+      const removeInvalidEvidence = this.db.prepare(`DELETE FROM competition_rule_evidence
+        WHERE versionId=? AND (documentId=? OR NOT EXISTS (
+          SELECT 1 FROM chunks c JOIN documents d ON d.id=c.documentId
+          WHERE c.id=competition_rule_evidence.chunkId AND c.documentId=competition_rule_evidence.documentId))`);
+      for (const row of rows) {
+        const version = this.parseVersion(row);
+        const selected = version.body.sources.some(source => source.documentId === documentId);
+        if (!selected && !version.evidence.some(entry => entry.documentId === documentId)) continue;
+        version.body.sources = version.body.sources.filter(source => source.documentId !== documentId);
+        const remaining = version.evidence.filter(entry => entry.documentId !== documentId && this.proofExists(entry));
+        if (version.status === "draft") {
+          const retained = new Set(remaining);
+          const lostFields = new Set(version.evidence.filter(entry => !retained.has(entry)).map(entry => entry.fieldPath));
+          const backedFields = new Set(remaining.map(entry => entry.fieldPath));
+          for (const [path, field] of Object.entries(version.body.fields)) {
+            if (field && field.value !== null && (lostFields.has(path as EvidenceInput["fieldPath"])
+              || (selected && !path.startsWith("tags.") && !backedFields.has(path as EvidenceInput["fieldPath"])))) field.state = "unreviewed";
+          }
+        }
+        const status = version.status === "published" || version.status === "archived" ? "needs_review" : version.status;
+        update.run(status, JSON.stringify(version.body), version.status === "draft" ? 1 : 0, now, version.id);
+        removeInvalidEvidence.run(version.id, documentId);
+      }
+      const events = this.db.prepare("SELECT * FROM competition_events").all() as EventRow[];
+      const updateEvent = this.db.prepare("UPDATE competition_events SET sourceDocumentIdsJson=? WHERE id=?");
+      for (const row of events) {
+        const event = parseEvent(row);
+        if (event.sourceDocumentIds.includes(documentId)) {
+          updateEvent.run(JSON.stringify(event.sourceDocumentIds.filter(id => id !== documentId)), event.id);
+        }
+      }
+    })());
+  }
+
   private requireDraft(version: RuleVersion, revision: number): void {
     if (version.status !== "draft" || version.editRevision !== revision) throw new CompetitionError("草稿状态或编辑修订号已变化，请刷新后重试。", 409);
   }

@@ -90,6 +90,7 @@ export class KnowledgeStore {
 
   deleteDocument(id: string) {
     this.db.transaction(() => {
+      this.competitions.invalidateDocument(id);
       this.db.prepare("DELETE FROM documents WHERE id=?").run(id);
       // 历史记录包含原文快照；删除来源时同时移除引用该来源的记录。
       const answers = this.db.prepare("SELECT id,body FROM answers").all() as { id: string; body: string }[];

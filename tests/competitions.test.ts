@@ -94,6 +94,189 @@ test("draft cloning removes stale proof and resets needs-review ancestry", () =>
   } finally { db?.close(); f.cleanup(); }
 });
 
+test("deleting a source invalidates publication and an existing draft without losing rule values", () => {
+  const f = competitionFixture();
+  try {
+    const published = f.publishStudentLimit(3);
+    const store = f.store.competitions;
+    const draft = store.ensureDraft(published.eventId);
+    f.store.deleteDocument(f.document.id);
+    const detail = store.getDetail(published.eventId);
+    assert.equal(detail.current, null);
+    assert.equal(store.list()[0].current, null);
+    assert.deepEqual(detail.event.sourceDocumentIds, []);
+    const history = store.getVersion(published.id);
+    assert.equal(history.status, "needs_review");
+    assert.deepEqual(history.body.fields, published.body.fields);
+    assert.deepEqual(history.body.sources, []);
+    assert.deepEqual(history.evidence, []);
+    assert.equal(detail.draft?.status, "draft");
+    assert.equal(detail.draft?.editRevision, draft.editRevision + 1);
+    assert.equal(detail.draft?.body.fields["team.studentMax"]?.value, 3);
+    assert.equal(detail.draft?.body.fields["team.studentMax"]?.state, "unreviewed");
+    assert.deepEqual(detail.draft?.body.sources, []);
+    assert.deepEqual(detail.draft?.evidence, []);
+    assert.throws(() => store.publish(draft.id, draft.editRevision), /载入|依据|来源|修订号|变化/);
+    assert.equal(f.store.getDocument(f.document.id), null);
+    assert.deepEqual(f.store.getChunks([f.document.id]), []);
+    const invalidated = store.getDetail(published.eventId);
+    f.store.deleteDocument(f.document.id);
+    assert.deepEqual(store.getDetail(published.eventId), invalidated);
+    f.reopen();
+    assert.equal(f.store.competitions.getDetail(published.eventId).current, null);
+  } finally { f.cleanup(); }
+});
+
+test("a source deleted before publication rejects stale payloads and fresh attempts with missing proof", () => {
+  const f = competitionFixture();
+  try {
+    const store = f.store.competitions;
+    const draft = store.ensureDraft(f.createEvent());
+    const saved = store.saveDraft(draft.id, {
+      expectedRevision: draft.editRevision,
+      body: { schemaVersion: 1, sources: [{ documentId: f.document.id, confirmed: true, applicabilityNote: "2026软件赛通用规则" }], fields: { "team.studentMax": field("integer", 3) } },
+      evidence: [evidence("team.studentMax", f.document.id, f.chunk.id)],
+    });
+    f.store.deleteDocument(f.document.id);
+    const invalidated = store.getVersion(saved.id);
+    assert.equal(invalidated.editRevision, saved.editRevision + 1);
+    statusRejects(409, () => store.publish(saved.id, saved.editRevision));
+    statusRejects(409, () => store.saveDraft(saved.id, { expectedRevision: saved.editRevision, body: saved.body, evidence: saved.evidence }));
+    rejects(() => store.saveDraft(saved.id, { expectedRevision: invalidated.editRevision, body: saved.body, evidence: saved.evidence }));
+    assert.throws(() => store.publish(saved.id, invalidated.editRevision), /依据|来源|确认/);
+    assert.deepEqual(store.getVersion(saved.id), invalidated);
+    assert.equal(store.getDetail(saved.eventId).current, null);
+  } finally { f.cleanup(); }
+});
+
+test("deletion finds sources without evidence across events and advances every affected draft revision", () => {
+  const f = competitionFixture();
+  try {
+    const store = f.store.competitions;
+    const firstId = f.createEvent();
+    const first = store.getDetail(firstId).event;
+    const secondId = store.createEvent({ competitionId: first.competitionId, editionLabel: first.editionLabel,
+      yearStart: first.yearStart, yearEnd: first.yearEnd, trackName: "硬件赛", stage: first.stage }).id;
+    const drafts = [firstId, secondId].map((id, index) => {
+      const draft = store.ensureDraft(id);
+      return store.saveDraft(draft.id, { expectedRevision: draft.editRevision,
+        body: { schemaVersion: 1, sources: [{ documentId: f.document.id, confirmed: true, applicabilityNote: "待人工核实" }],
+          fields: index === 0 ? { "team.studentMax": field("integer", 3), "team.teacherMax": field("integer", null, "unknown") } : {} }, evidence: [] });
+    });
+    f.store.deleteDocument(f.document.id);
+    for (const previous of drafts) {
+      const invalidated = store.getVersion(previous.id);
+      assert.equal(invalidated.status, "draft");
+      assert.equal(invalidated.editRevision, previous.editRevision + 1);
+      assert.deepEqual(invalidated.body.sources, []);
+      assert.deepEqual(invalidated.evidence, []);
+      statusRejects(409, () => store.publish(previous.id, previous.editRevision));
+    }
+    const fields = store.getVersion(drafts[0].id).body.fields;
+    assert.equal(fields["team.studentMax"]?.state, "unreviewed");
+    assert.deepEqual(fields["team.teacherMax"], field("integer", null, "unknown"));
+  } finally { f.cleanup(); }
+});
+
+test("deletion invalidates archived and sources-only publications while retaining valid unrelated proof", () => {
+  const f = competitionFixture();
+  let db: Database.Database | undefined;
+  try {
+    const store = f.store.competitions;
+    const other = f.store.importDocument({ title: "2026测试赛事补充规则", competition: "测试赛事", kind: "rule", year: "2026", stage: "通用规则", sourceUrl: "", fileName: "other.txt", pages: [{ page: null, text: "指导教师最多2人。" }] }).document;
+    const otherChunk = f.store.getChunks([other.id])[0];
+    const initial = store.ensureDraft(f.createEvent());
+    const saved = store.saveDraft(initial.id, { expectedRevision: initial.editRevision,
+      body: { schemaVersion: 1, sources: [{ documentId: other.id, confirmed: true, applicabilityNote: "2026通用规则" }], fields: { "team.teacherMax": field("integer", 2) } },
+      evidence: [evidence("team.teacherMax", other.id, otherChunk.id)] });
+    const unaffectedHistory = store.publish(saved.id, saved.editRevision);
+    const affectedHistory = f.publishStudentLimit(3);
+    const next = store.ensureDraft(affectedHistory.eventId);
+    const sourcesOnly = store.saveDraft(next.id, { expectedRevision: next.editRevision,
+      body: { schemaVersion: 1, sources: [...affectedHistory.body.sources, ...unaffectedHistory.body.sources], fields: {
+        "team.teacherMax": field("integer", 2), "team.studentMax": field("integer", null, "unknown"),
+      } }, evidence: unaffectedHistory.evidence });
+    const published = store.publish(sourcesOnly.id, sourcesOnly.editRevision);
+    const draft = store.ensureDraft(published.eventId);
+    db = new Database(path.join(f.root, "knowledge.sqlite"));
+    const validEvidence = db.prepare("SELECT * FROM competition_rule_evidence WHERE documentId=? ORDER BY id");
+    const beforeEvidence = validEvidence.all(other.id);
+    const beforeUnaffected = store.getVersion(unaffectedHistory.id);
+    f.store.deleteDocument(f.document.id);
+    assert.equal(store.getDetail(published.eventId).current, null);
+    assert.equal(store.getVersion(unaffectedHistory.id).status, "archived");
+    for (const id of [affectedHistory.id, published.id]) {
+      const invalidated = store.getVersion(id);
+      assert.equal(invalidated.status, "needs_review");
+      assert.ok(invalidated.body.sources.every(source => source.documentId !== f.document.id));
+      assert.ok(invalidated.evidence.every(entry => entry.documentId !== f.document.id));
+    }
+    const remaining = store.getVersion(draft.id);
+    assert.deepEqual(remaining.body.sources, unaffectedHistory.body.sources);
+    assert.deepEqual(remaining.evidence, unaffectedHistory.evidence);
+    assert.deepEqual(remaining.body.fields, draft.body.fields);
+    assert.equal(remaining.editRevision, draft.editRevision + 1);
+    assert.deepEqual(store.getDetail(published.eventId).event.sourceDocumentIds, [other.id]);
+    assert.deepEqual(validEvidence.all(other.id), beforeEvidence);
+    assert.deepEqual(store.getVersion(unaffectedHistory.id), beforeUnaffected);
+    assert.ok(f.store.getDocument(other.id));
+  } finally { db?.close(); f.cleanup(); }
+});
+
+test("deletion also discovers evidence references omitted from stored source lists", () => {
+  const f = competitionFixture();
+  let db: Database.Database | undefined;
+  try {
+    const published = f.publishStudentLimit();
+    const draft = f.store.competitions.ensureDraft(published.eventId);
+    db = new Database(path.join(f.root, "knowledge.sqlite"));
+    const withoutSources = { ...published.body, sources: [] };
+    db.prepare("UPDATE competition_rule_versions SET bodyJson=? WHERE eventId=?").run(JSON.stringify(withoutSources), published.eventId);
+    f.store.deleteDocument(f.document.id);
+    assert.equal(f.store.competitions.getVersion(published.id).status, "needs_review");
+    const invalidated = f.store.competitions.getVersion(draft.id);
+    assert.equal(invalidated.body.fields["team.studentMax"]?.state, "unreviewed");
+    assert.equal(invalidated.editRevision, draft.editRevision + 1);
+    assert.deepEqual(invalidated.evidence, []);
+    assert.deepEqual(f.store.competitions.getDetail(published.eventId).event.sourceDocumentIds, []);
+  } finally { db?.close(); f.cleanup(); }
+});
+
+test("rules-storage failure rolls back source deletion, rules, evidence and answer cleanup", () => {
+  const f = competitionFixture();
+  let db: Database.Database | undefined;
+  try {
+    const published = f.publishStudentLimit();
+    f.store.competitions.ensureDraft(published.eventId);
+    f.store.saveAnswer({ id: "delete-answer", question: "团队人数", answer: "最多3人", mode: "extractive", retrievalMode: "keyword",
+      citations: [{ id: f.chunk.id, documentId: f.document.id, title: f.document.title, text: f.chunk.text,
+        page: f.chunk.page, paragraph: f.chunk.paragraph, sourceUrl: f.document.sourceUrl }],
+      warnings: [], elapsedMs: 0, createdAt: new Date().toISOString() });
+    const before = f.store.competitions.getDetail(published.eventId);
+    const source = f.store.getDocument(f.document.id);
+    const answers = f.store.listAnswers();
+    db = new Database(path.join(f.root, "knowledge.sqlite"));
+    // Event metadata is changed after versions and evidence, so failure must undo earlier writes.
+    db.exec("CREATE TRIGGER reject_rule_invalidation BEFORE UPDATE OF sourceDocumentIdsJson ON competition_events BEGIN SELECT RAISE(ABORT, 'test rules failure'); END");
+    assert.throws(() => f.store.deleteDocument(f.document.id));
+    assert.deepEqual(f.store.competitions.getDetail(published.eventId), before);
+    assert.deepEqual(f.store.getDocument(f.document.id), source);
+    assert.deepEqual(f.store.listAnswers(), answers);
+    db.exec("DROP TRIGGER reject_rule_invalidation");
+    // A later cleanup failure must also undo successful rule invalidation and document deletion.
+    db.exec("CREATE TRIGGER reject_answer_cleanup BEFORE DELETE ON answers BEGIN SELECT RAISE(ABORT, 'test answer failure'); END");
+    assert.throws(() => f.store.deleteDocument(f.document.id));
+    assert.deepEqual(f.store.competitions.getDetail(published.eventId), before);
+    assert.deepEqual(f.store.getDocument(f.document.id), source);
+    assert.deepEqual(f.store.listAnswers(), answers);
+    db.exec("DROP TRIGGER reject_answer_cleanup");
+    f.store.deleteDocument(f.document.id);
+    assert.equal(f.store.getDocument(f.document.id), null);
+    assert.deepEqual(f.store.listAnswers(), []);
+    assert.equal(f.store.competitions.getDetail(published.eventId).current, null);
+  } finally { db?.close(); f.cleanup(); }
+});
+
 test("missing versions, invalid revisions and stale selected documents fail without mutating draft", () => {
   const f = competitionFixture();
   try {
@@ -108,7 +291,7 @@ test("missing versions, invalid revisions and stale selected documents fail with
     rejects(() => store.saveDraft(draft.id, { expectedRevision: 0, body: ruleBody, evidence: [evidence("team.studentMax", f.document.id, "missing")] }));
     const saved = store.saveDraft(draft.id, { expectedRevision: 0, body: ruleBody, evidence: [evidence("team.studentMax", f.document.id, f.chunk.id)] });
     f.store.deleteDocument(f.document.id);
-    rejects(() => store.publish(saved.id, saved.editRevision));
+    statusRejects(409, () => store.publish(saved.id, saved.editRevision));
     assert.equal(store.getVersion(saved.id).status, "draft");
   } finally { f.cleanup(); }
 });
