@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-05-competition-rules-design.md`，用户已确认。
 
-**执行状态：** 用户已审阅计划并选择子代理分任务执行。Task 1 已完成双阶段审查，开始 Task 2；其余未勾选步骤仍待执行。
+**执行状态：** 用户已审阅计划并选择子代理分任务执行。Task 1、2 已完成双阶段审查，开始 Task 3；其余未勾选步骤仍待执行。
 
 ---
 
@@ -217,7 +217,7 @@ export function validateCalendar(value: string, precision: "date" | "datetime") 
 
 **Files:** Create store.ts、tests/helpers/competition-fixture.ts；Modify src/server/store.ts、tests/competitions.test.ts。
 
-- [ ] **Step 1：写旧数据保留及重开数据库的测试。** helper 使用 mkdtempSync 创建路径、KnowledgeStore 导入一份简短原文，返回 store、document、chunk 和 cleanup。cleanup 先关闭数据库再删除临时目录；不触及用户 data。
+- [x] **Step 1：写旧数据保留及重开数据库的测试。** helper 使用 mkdtempSync 创建路径、KnowledgeStore 导入一份简短原文，返回 store、document、chunk 和 cleanup。cleanup 先关闭数据库再删除临时目录；不触及用户 data。
 
 测试文件从helper导入competitionFixture，错误断言从types.ts导入CompetitionError。下面是各任务完成后的完整helper：Task 2 先实现createEvent/reopen/cleanup；publishStudentLimit随Task 3加入，seedManifest随Task 8加入，不为未实现方法添加占位实现。
 
@@ -244,19 +244,19 @@ export function competitionFixture() {
   const eventInput = { editionLabel: "2026第1届", yearStart: 2026, yearEnd: 2026,
     trackName: "软件赛", stage: "通用规则" };
   function createEvent() {
-    if (eventId) return store.competitions.getDetail(eventId).event;
+    if (eventId) return eventId;
     const competition = store.competitions.createCompetition(competitionInput);
     const event = store.competitions.createEvent({ ...eventInput, competitionId: competition.id });
     eventId = event.id;
-    return event;
+    return eventId;
   }
   return {
     get store() { return store; }, document, chunk, root, createEvent,
     reopen() { store.close(); store = new KnowledgeStore(file); },
     cleanup() { store.close(); rmSync(root, { recursive: true, force: true }); },
     publishStudentLimit(max: number) {
-      const event = createEvent();
-      const draft = store.competitions.ensureDraft(event.id);
+      const eventId = createEvent();
+      const draft = store.competitions.ensureDraft(eventId);
       const body: RuleBody = { schemaVersion: 1,
         sources: [{ documentId: document.id, applicabilityNote: "同届软件赛通用规则", confirmed: true }],
         fields: { "team.studentMax": { kind: "integer", value: max, state: "confirmed", note: "" } } };
@@ -295,8 +295,8 @@ test("规则表初始化不丢失原文，赛事建档可恢复", () => {
 });
 ```
 
-- [ ] **Step 2：运行测试，预期 competitions 属性尚不存在。** `npx tsx --test tests/competitions.test.ts`。
-- [ ] **Step 3：在现有三表创建后初始化四表。** KnowledgeStore 增加 `readonly competitions: CompetitionStore`，构造器用 `this.competitions = new CompetitionStore(this.db)`；CompetitionStore 接收 Database.Database，不能自行 new Database。四表建表要点：
+- [x] **Step 2：运行测试，预期 competitions 属性尚不存在。** `npx tsx --test tests/competitions.test.ts`。
+- [x] **Step 3：在现有三表创建后初始化四表。** KnowledgeStore 增加 `readonly competitions: CompetitionStore`，构造器用 `this.competitions = new CompetitionStore(this.db)`；CompetitionStore 接收 Database.Database，不能自行 new Database。四表建表要点：
 
 ```sql
 CREATE TABLE IF NOT EXISTS competitions (
@@ -328,8 +328,8 @@ CREATE INDEX IF NOT EXISTS competition_evidence_document ON competition_rule_evi
 
 createCompetition/createEvent 用参数化 INSERT 和 randomUUID；接口用户新建重复建档返回409，种子模块可先按唯一键查找复用。yearStart不得超过yearEnd；官网 URL 复用 sourceUrl 且拒绝用户名密码。查询显式映射 aliasesJson/bodyJson，不将数据库内部列原样发送。
 
-- [ ] **Step 4：执行测试并重开临时数据库验证。** 新测试和原 tests/core.test.ts 均通过。
-- [ ] **Step 5：提交建表与建档。** `git add src/server/competitions/store.ts src/server/store.ts tests/helpers/competition-fixture.ts tests/competitions.test.ts`；`git commit -m "feat: persist competition events alongside knowledge sources"`。
+- [x] **Step 4：执行测试并重开临时数据库验证。** 新测试和原 tests/core.test.ts 均通过。
+- [x] **Step 5：提交建表与建档。** `git add src/server/competitions/store.ts src/server/store.ts tests/helpers/competition-fixture.ts tests/competitions.test.ts`；`git commit -m "feat: persist competition events alongside knowledge sources"`。
 
 ## Task 3：草稿、证据校验与原子发布
 
@@ -341,8 +341,8 @@ createCompetition/createEvent 用参数化 INSERT 和 randomUUID；接口用户�
 test("确认值必须有真实依据，旧窗口不能覆盖草稿", () => {
   const f = competitionFixture();
   try {
-    const event = f.createEvent();
-    const draft = f.store.competitions.ensureDraft(event.id);
+    const eventId = f.createEvent();
+    const draft = f.store.competitions.ensureDraft(eventId);
     const body = { schemaVersion: 1 as const,
       sources: [{ documentId: f.document.id, applicabilityNote: "同届软件赛通用规则", confirmed: true }],
       fields: { "team.studentMax": { kind: "integer" as const, value: 3, state: "confirmed" as const, note: "" } }
@@ -451,7 +451,7 @@ test("本地接口拒绝外站写入和不存在的赛道", async () => {
 - [ ] **Step 2：运行 `npx tsx --test tests/competition-routes.test.ts`，预期接口尚未存在。**
 - [ ] **Step 3：实现JSON与错误封装及接口。** mutation先checkOrigin；用ReadableStream reader累计字节，不信任Content-Length，超过65536立即cancel并400，完整UTF-8文本JSON.parse后再validate。response body只输出用户可理解message，不打印SQL、堆栈或环境配置。统一竞争错误用CompetitionError.status。
 
-POST /api/competitions 请求为 `{action:"competition",input:CreateCompetition}` 或 `{action:"event",input:CreateEvent}`。GET返回 `{items}`。其他接口响应分别 `{detail}`、`{version}`；draft创建请求无需正文，publish请求为 `{expectedRevision}`，PUT请求为SaveDraft。所有动态params沿用项目Promise写法。
+POST /api/competitions 请求为 `{action:"competition",input:CreateCompetition}` 或 `{action:"event",input:CreateEvent}`。GET返回 `{competitions,items}`，competitions通过listCompetitions()包含尚无赛道的母赛事，items通过list()返回赛道；便于新建母赛事后立即选择建赛道。其他接口响应分别 `{detail}`、`{version}`；draft创建请求无需正文，publish请求为 `{expectedRevision}`，PUT请求为SaveDraft。所有动态params沿用项目Promise写法。
 
 ```ts
 export const runtime = "nodejs";
