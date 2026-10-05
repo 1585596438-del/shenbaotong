@@ -85,7 +85,7 @@ export function Workspace() {
     if (!question.trim() || busy) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      const result = await api<{ answer: Answer }>("/api/questions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, documentIds: selected }) });
+      const result = await api<{ answer: Answer }>("/api/questions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, documentIds: selected, previousAnswerId: answer?.id }) });
       setStatus(old => old ? { ...old, answers: [...old.answers.slice(-29), result.answer] } : old);
       setActiveAnswer(result.answer.id); setQuestion("");
     } catch (e) { setError(e instanceof Error ? e.message : "问答失败。"); }

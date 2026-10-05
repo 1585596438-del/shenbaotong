@@ -20,6 +20,7 @@ export type Citation = {
 };
 export type Answer = {
   id: string; question: string; answer: string;
+  retrievalQuestion?: string;
   mode: "generated" | "extractive" | "no_evidence";
   retrievalMode: "hybrid" | "keyword"; citations: Citation[];
   warnings: string[]; elapsedMs: number; createdAt: string;

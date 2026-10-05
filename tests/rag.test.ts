@@ -12,6 +12,81 @@ async function setup() {
   return { store, first, close() { store.close(); rmSync(root, { recursive: true, force: true }); } };
 }
 
+test("口语问题锁定指定赛事，今年解析为当前年度，不混用软件杯和历史目录", async () => {
+  const { planRetrieval } = await import("../src/server/query");
+  const env = await setup();
+  try {
+    const base = {sourceUrl:"",kind:"rule" as const,year:"2026",stage:"全国",fileName:"rule.txt"};
+    const design = env.store.importDocument({...base,title:"2026计算机设计大赛参赛要求",competition:"中国大学生计算机设计大赛",pages:[{page:null,text:"作品类别包括软件应用与开发、人工智能应用。"}]}).document;
+    env.store.importDocument({...base,title:"软件杯",competition:"中国软件杯大学生软件设计大赛",pages:[{page:null,text:"今年比赛项目是软件设计（应用系统）。"}]});
+    env.store.importDocument({...base,year:"2024",title:"2024计算机设计大赛",competition:design.competition,pages:[{page:null,text:"历史类别为旧规则。"}]});
+    const plan=planRetrieval("今年中国大学生计算机设计大赛有什么比赛项目",env.store.listDocuments(),undefined,new Date("2026-10-05"));
+    assert.deepEqual(plan.documents.map(d=>d.id),[design.id]);
+    assert.match(plan.retrievalQuestion,/2026年/);
+  } finally {env.close();}
+});
+
+test("短标题检索补齐后续真实条款，所有引用保持原来的来源与片段ID", async () => {
+  const { answerQuestion } = await import("../src/server/rag");
+  const env=await setup();
+  try {
+    const doc=env.store.importDocument({title:"中国软件杯举办通知",competition:"中国软件杯大学生软件设计大赛",sourceUrl:"https://example.edu/software",kind:"notice",year:"2026",stage:"",fileName:"web.txt",pages:[{page:null,text:"比赛项目是软件设计（应用系统）。\n\n作品必须提供独立开发的原创源代码。\n\n开发说明须介绍技术路线与测试结果。\n\n提交材料为演示视频和完整开发文档。"}]}).document;
+    const provider={chatReady:true,embeddingReady:false,embeddingKey:"none",async embed(){return [];},async generate(_system:string,user:string){
+      const {passages}=JSON.parse(user);
+      assert.ok(passages.some((p:{text:string})=>p.text.includes("原创源代码")));
+      assert.ok(passages.some((p:{text:string})=>p.text.includes("技术路线")));
+      assert.ok(passages.every((p:{competition:string})=>p.competition.includes("软件杯")));
+      return JSON.stringify({hasEvidence:true,answer:"项目为软件设计，须提供原创源代码、技术路线和测试结果。",citations:passages.map((p:{id:string})=>p.id)});
+    }};
+    const answer=await answerQuestion({question:"软件杯的软件设计（应用系统）详细讲一下"},env.store,provider);
+    assert.equal(answer.mode,"generated");
+    assert.ok(answer.citations.every(c=>c.documentId===doc.id && c.sourceUrl===doc.sourceUrl));
+  } finally {env.close();}
+});
+
+test("追问沿用用户上一问的赛事，不把上一条错误模型回答作为原文证据", async () => {
+  const { answerQuestion } = await import("../src/server/rag");
+  const env=await setup();
+  try {
+    const base={sourceUrl:"",kind:"rule" as const,year:"2026",stage:"",fileName:"rule.txt"};
+    const design=env.store.importDocument({...base,title:"计算机设计大赛",competition:"中国大学生计算机设计大赛",pages:[{page:null,text:"软件应用与开发包括Web应用、管理信息系统和移动应用。"}]}).document;
+    const software=env.store.importDocument({...base,title:"软件杯举办通知",competition:"中国软件杯大学生软件设计大赛",pages:[{page:null,text:"比赛项目是软件设计（应用系统）。"}]}).document;
+    const old=await answerQuestion({question:"2026中国大学生计算机设计大赛有什么比赛项目"},env.store,null);
+    const provider={chatReady:true,embeddingReady:false,embeddingKey:"none",async embed(){return [];},async generate(_system:string,user:string){
+      const input=JSON.parse(user);
+      assert.match(input.previousQuestion,/计算机设计大赛/);
+      assert.ok(input.passages.every((p:{competition:string})=>p.competition.includes("计算机设计大赛")));
+      return JSON.stringify({hasEvidence:true,answer:"该赛事实际类别叫软件应用与开发，包括Web应用、管理信息系统和移动应用。",citations:input.passages.map((p:{id:string})=>p.id)});
+    }};
+    const detail=await answerQuestion({question:"软件设计(应用系统)。详细讲一下",previousAnswerId:old.id},env.store,provider);
+    assert.equal(detail.mode,"generated"); assert.ok(detail.citations.every(c=>c.documentId===design.id));
+    const continued=await answerQuestion({question:"还有哪些具体要求",previousAnswerId:detail.id},env.store,null);
+    assert.match(continued.retrievalQuestion!,/计算机设计大赛/);
+    assert.ok(continued.citations.length && continued.citations.every(c=>c.documentId===design.id));
+    const switched=await answerQuestion({question:"软件杯有什么比赛项目",previousAnswerId:old.id},env.store,null);
+    assert.ok(switched.citations.length && switched.citations.every(c=>c.documentId===software.id));
+    const another=env.store.importDocument({...base,title:"新导入赛事",competition:"校园开源挑战赛",pages:[{page:null,text:"开源软件作品需附源代码和文档。"}]}).document;
+    const imported=await answerQuestion({question:"校园开源挑战赛的开源软件作品详细讲一下",previousAnswerId:old.id},env.store,null);
+    assert.ok(imported.citations.length && imported.citations.every(c=>c.documentId===another.id));
+    const outsideScope=await answerQuestion({question:"详细讲一下",previousAnswerId:old.id,documentIds:[software.id]},env.store,null);
+    assert.equal(outsideScope.mode,"no_evidence");
+  } finally {env.close();}
+});
+
+test("跨赛事比较保留双方，蓝桥杯指定Python时不混入Java规则", async () => {
+  const { planRetrieval }=await import("../src/server/query");
+  const env=await setup();
+  try {
+    const base={sourceUrl:"",kind:"rule" as const,year:"2026",stage:"",fileName:"rule.txt",pages:[{page:null,text:"规则正文。"}]};
+    const software=env.store.importDocument({...base,title:"软件杯",competition:"中国软件杯大学生软件设计大赛"}).document;
+    const ai=env.store.importDocument({...base,title:"人工智能创意赛",competition:"中国高校计算机大赛／人工智能创意赛"}).document;
+    const python=env.store.importDocument({...base,title:"蓝桥杯Python",competition:"蓝桥杯／Python"}).document;
+    env.store.importDocument({...base,title:"蓝桥杯Java",competition:"蓝桥杯／Java"});
+    assert.deepEqual(new Set(planRetrieval("软件杯和人工智能创意赛学生人数相同吗",env.store.listDocuments()).documents.map(d=>d.id)),new Set([software.id,ai.id]));
+    assert.deepEqual(planRetrieval("蓝桥杯Python考什么",env.store.listDocuments()).documents.map(d=>d.id),[python.id]);
+  } finally {env.close();}
+});
+
 test("真实引用中的同校限制不能被模型改为允许跨校", async () => {
   const { answerQuestion } = await import("../src/server/rag");
   const env = await setup();
