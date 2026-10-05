@@ -248,6 +248,28 @@ test("national final stage names are equivalent while provincial and initial sta
   } finally { f.cleanup(); }
 });
 
+test("explicit software group mismatch cannot be overridden by a matching subject", () => {
+  const f = competitionFixture();
+  try {
+    const original = f.store.competitions.getDetail(f.createEvent());
+    const detail = { competition: original.competition, event: { ...original.event, trackName: "软件赛Python A组" } };
+    const ruleBody: RuleBody = { ...body(), sources: [{ documentId: f.document.id, confirmed: true, applicabilityNote: "适用于2026 Python A组" }] };
+    for (const metadata of [
+      { title: "2026测试赛事软件赛Python B组规则", competition: "测试赛事" },
+      { title: "2026测试赛事规则", competition: "测试赛事／软件赛Python B组" },
+    ]) {
+      const source = { ...f.document, ...metadata };
+      assert.ok(collectSourceIssues(detail, ruleBody, [], new Map([[source.id, source]])).some(issue => issue.fieldPath === "sources"));
+    }
+    for (const title of ["2026测试赛事软件赛Python规则", "2026测试赛事软件赛Python A组规则", "2026测试赛事软件赛Python A/B组规则", "2026测试赛事软件赛Python A组、B组规则"]) {
+      const source = { ...f.document, title };
+      assert.deepEqual(collectSourceIssues(detail, ruleBody, [], new Map([[source.id, source]])), [], title);
+    }
+    const wrongSubject = { ...f.document, title: "2026测试赛事软件赛Java A组规则" };
+    assert.ok(collectSourceIssues(detail, ruleBody, [], new Map([[wrongSubject.id, wrongSubject]])).some(issue => issue.fieldPath === "sources"));
+  } finally { f.cleanup(); }
+});
+
 test("SQLite rule initialization preserves sources and persists competition events after reopening", () => {
   const f = competitionFixture();
   try {

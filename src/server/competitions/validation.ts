@@ -253,6 +253,9 @@ export function collectSourceIssues(detail: Pick<EventDetail, "competition" | "e
       const tracks = Array.from(trackText.matchAll(trackMarkers), match => match[0].toLowerCase());
       const eventTrack = event.trackName.toLowerCase();
       if (tracks.length && !tracks.some(track => eventTrack.includes(track) || track.includes(eventTrack))) add("sources", "来源明确赛道与当前赛道不相符");
+      const sourceGroups = Array.from(trackText.matchAll(/[A-Z](?:组|类)/gi), match => match[0].toLowerCase());
+      const eventGroups = Array.from(eventTrack.matchAll(/[A-Z](?:组|类)/gi), match => match[0].toLowerCase());
+      if (sourceGroups.length && eventGroups.length && !sourceGroups.some(group => eventGroups.includes(group))) add("sources", "来源明确组别与当前组别不相符");
       const sourceSubjects = softwareSubjects(scopeText);
       const eventSubjects = softwareSubjects(event.trackName);
       if (sourceSubjects.length && eventSubjects.length && !sourceSubjects.some(subject => eventSubjects.includes(subject))) add("sources", "来源明确软件赛科目与当前科目不相符");
