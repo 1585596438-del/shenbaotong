@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import { competitionFixture } from "./helpers/competition-fixture";
 import { CompetitionError, FIELD_DEFINITIONS, emptyRuleBody, type FieldPath, type RuleBody, type RuleField } from "../src/server/competitions/types";
-import { collectPublicationIssues, validateBody, validateCalendar, validateCreateCompetition, validateCreateEvent, validateEvidenceInputs, validateSaveDraft } from "../src/server/competitions/validation";
+import { collectPublicationIssues, collectSourceIssues, validateBody, validateCalendar, validateCreateCompetition, validateCreateEvent, validateEvidenceInputs, validateSaveDraft } from "../src/server/competitions/validation";
 
 const field = (kind: RuleField["kind"], value: RuleField["value"], state: RuleField["state"] = "confirmed", note = ""): RuleField => ({ kind, value, state, note });
 const body = (fields: RuleBody["fields"] = {}): RuleBody => ({ schemaVersion: 1, sources: [{ documentId: "doc-1", applicabilityNote: "适用于2026全国赛", confirmed: true }], fields });
@@ -12,6 +12,198 @@ const competition = () => ({ name: "测试赛", aliases: ["别名"], catalogNumb
 const event = () => ({ competitionId: "competition-1", editionLabel: "第十届", yearStart: 2026, yearEnd: 2026, trackName: "通用", stage: "全国赛" });
 const evidence = (fieldPath: FieldPath = "content.summary", documentId = "doc-1", chunkId = "chunk-1") => ({ fieldPath, documentId, chunkId });
 const rejects = (fn: () => unknown) => assert.throws(fn, (error: unknown) => error instanceof CompetitionError && error.status === 400);
+const statusRejects = (status: number, fn: () => unknown) => assert.throws(fn, (error: unknown) => error instanceof CompetitionError && error.status === status);
+
+test("draft permits missing proof, revisions conflict, and only real paired proof permits publication", () => {
+  const f = competitionFixture();
+  try {
+    const store = f.store.competitions;
+    const eventId = f.createEvent();
+    const draft = store.ensureDraft(eventId);
+    assert.deepEqual(store.ensureDraft(eventId), draft);
+    const ruleBody: RuleBody = { ...body({ "team.studentMax": field("integer", 3) }), sources: [{ documentId: f.document.id, applicabilityNote: "2026软件赛通用规则", confirmed: true }] };
+    const saved = store.saveDraft(draft.id, { expectedRevision: draft.editRevision, body: ruleBody, evidence: [] });
+    assert.equal(saved.editRevision, draft.editRevision + 1);
+    assert.deepEqual(store.getDetail(eventId).event.sourceDocumentIds, []);
+    rejects(() => store.publish(saved.id, saved.editRevision));
+    statusRejects(409, () => store.saveDraft(saved.id, { expectedRevision: draft.editRevision, body: ruleBody, evidence: [] }));
+    statusRejects(409, () => store.publish(saved.id, draft.editRevision));
+    const other = f.store.importDocument({ title: "2026测试赛事补充规则", competition: "测试赛事", kind: "rule", year: "2026", stage: "通用规则", sourceUrl: "", fileName: "other.txt", pages: [{ page: null, text: "另一文档" }] }).document;
+    const otherChunk = f.store.getChunks([other.id])[0];
+    rejects(() => store.saveDraft(saved.id, { expectedRevision: saved.editRevision, body: ruleBody, evidence: [evidence("team.studentMax", f.document.id, otherChunk.id)] }));
+    assert.deepEqual(store.getVersion(saved.id), saved);
+    const proven = store.saveDraft(saved.id, { expectedRevision: saved.editRevision, body: ruleBody, evidence: [evidence("team.studentMax", f.document.id, f.chunk.id)] });
+    const published = store.publish(proven.id, proven.editRevision);
+    assert.equal(published.status, "published");
+    assert.equal(published.editRevision, proven.editRevision + 1);
+    assert.ok(published.publishedAt && Number.isFinite(Date.parse(published.publishedAt)));
+    assert.deepEqual(store.getDetail(eventId).event.sourceDocumentIds, [f.document.id]);
+    statusRejects(409, () => store.publish(published.id, published.editRevision));
+    statusRejects(409, () => store.saveDraft(published.id, { expectedRevision: published.editRevision, body: ruleBody, evidence: [] }));
+  } finally { f.cleanup(); }
+});
+
+test("new draft clones published evidence without changing history and atomic publication replaces v1", () => {
+  const f = competitionFixture();
+  let db: Database.Database | undefined;
+  try {
+    const v1 = f.publishStudentLimit();
+    const store = f.store.competitions;
+    const v2 = store.ensureDraft(v1.eventId);
+    assert.equal(v2.version, 2);
+    assert.deepEqual(v2.body, v1.body);
+    assert.deepEqual(v2.evidence, v1.evidence);
+    assert.equal(store.ensureDraft(v1.eventId).id, v2.id);
+    v2.body.fields["team.studentMax"]!.value = 4;
+    const saved = store.saveDraft(v2.id, { expectedRevision: v2.editRevision, body: v2.body, evidence: v2.evidence });
+    assert.deepEqual(store.getVersion(v1.id), v1);
+    // Force failure after archiving to prove all publication mutations share one transaction.
+    db = new Database(path.join(f.root, "knowledge.sqlite"));
+    db.exec("CREATE TRIGGER reject_publish BEFORE UPDATE OF status ON competition_rule_versions WHEN NEW.version=2 AND NEW.status='published' BEGIN SELECT RAISE(ABORT, 'test publication failure'); END");
+    assert.throws(() => store.publish(saved.id, saved.editRevision));
+    assert.deepEqual(store.getVersion(v1.id), v1);
+    assert.deepEqual(store.getVersion(saved.id), saved);
+    db.exec("DROP TRIGGER reject_publish");
+    const published = store.publish(saved.id, saved.editRevision);
+    assert.equal(published.status, "published");
+    assert.equal(store.getVersion(v1.id).status, "archived");
+    assert.deepEqual(store.getVersion(v1.id).body, v1.body);
+    assert.equal(store.getDetail(v1.eventId).versions.filter(v => v.status === "published").length, 1);
+    f.reopen();
+    assert.equal(f.store.competitions.getDetail(v1.eventId).current?.id, published.id);
+  } finally { db?.close(); f.cleanup(); }
+});
+
+test("draft cloning removes stale proof and resets needs-review ancestry", () => {
+  const f = competitionFixture();
+  let db: Database.Database | undefined;
+  try {
+    const v1 = f.publishStudentLimit();
+    f.store.deleteDocument(f.document.id);
+    const draft = f.store.competitions.ensureDraft(v1.eventId);
+    assert.deepEqual(draft.body.sources, []);
+    assert.deepEqual(draft.evidence, []);
+    assert.equal(draft.body.fields["team.studentMax"]?.state, "unreviewed");
+    assert.equal(f.store.competitions.getVersion(v1.id).body.fields["team.studentMax"]?.state, "confirmed");
+    db = new Database(path.join(f.root, "knowledge.sqlite"));
+    db.prepare("UPDATE competition_rule_versions SET status='needs_review' WHERE id=?").run(draft.id);
+    const clone = f.store.competitions.ensureDraft(v1.eventId);
+    assert.equal(clone.version, 3);
+    assert.equal(clone.body.fields["team.studentMax"]?.state, "unreviewed");
+    assert.deepEqual(clone.body.sources, []);
+  } finally { db?.close(); f.cleanup(); }
+});
+
+test("missing versions, invalid revisions and stale selected documents fail without mutating draft", () => {
+  const f = competitionFixture();
+  try {
+    const store = f.store.competitions;
+    statusRejects(404, () => store.ensureDraft("missing"));
+    statusRejects(404, () => store.saveDraft("missing", { expectedRevision: 0, body: emptyRuleBody(), evidence: [] }));
+    statusRejects(404, () => store.publish("missing", 0));
+    const draft = store.ensureDraft(f.createEvent());
+    for (const revision of [-1, 1.5, NaN, Infinity, "0"]) rejects(() => store.publish(draft.id, revision as number));
+    rejects(() => store.saveDraft(draft.id, { expectedRevision: 0, body: body(), evidence: [] }));
+    const ruleBody = { ...body({ "team.studentMax": field("integer", 3) }), sources: [{ documentId: f.document.id, applicabilityNote: "适用", confirmed: false }] };
+    rejects(() => store.saveDraft(draft.id, { expectedRevision: 0, body: ruleBody, evidence: [evidence("team.studentMax", f.document.id, "missing")] }));
+    const saved = store.saveDraft(draft.id, { expectedRevision: 0, body: ruleBody, evidence: [evidence("team.studentMax", f.document.id, f.chunk.id)] });
+    f.store.deleteDocument(f.document.id);
+    rejects(() => store.publish(saved.id, saved.editRevision));
+    assert.equal(store.getVersion(saved.id).status, "draft");
+  } finally { f.cleanup(); }
+});
+
+test("publication checks selected source year, competition, track, stage and school-only kinds", () => {
+  const cases = [
+    { title: "2025测试赛事规则", year: "2025", accepted: false },
+    { title: "2025测试赛事规则", year: "2026", accepted: false },
+    { title: "2025-2026测试赛事规则", year: "2025-2026", accepted: true },
+    { title: "测试赛事规则", year: "", accepted: true },
+    { title: "2026其他比赛规则", competition: "其他比赛", accepted: false },
+    { title: "2026测试杯规则", competition: "测试杯", accepted: true },
+    { title: "2026测试赛事硬件赛规则", accepted: false },
+    { title: "2026测试赛事软件赛、硬件赛时间通知", kind: "notice", accepted: true },
+    { title: "2026测试赛事省赛规则", stage: "省赛", eventStage: "全国赛", accepted: false },
+    { title: "2026测试赛事校赛、省赛、国赛通用规则", stage: "校赛、省赛、国赛通用要求", eventStage: "全国赛", accepted: true },
+    { title: "2026测试赛事目录", kind: "catalog", accepted: false },
+    { title: "2026测试赛事管理政策", kind: "policy", accepted: false },
+  ];
+  for (const scenario of cases) {
+    const f = competitionFixture();
+    try {
+      const store = f.store.competitions;
+      let eventId = f.createEvent();
+      if (scenario.eventStage) {
+        const original = store.getDetail(eventId).event;
+        eventId = store.createEvent({ competitionId: original.competitionId, editionLabel: original.editionLabel, yearStart: original.yearStart, yearEnd: original.yearEnd, trackName: original.trackName, stage: scenario.eventStage }).id;
+      }
+      const source = f.store.importDocument({ title: scenario.title, competition: scenario.competition ?? "测试赛事", year: scenario.year ?? "2026", stage: scenario.stage ?? "通用规则", kind: (scenario.kind ?? "rule") as "rule" | "notice" | "catalog" | "policy", sourceUrl: "", fileName: "scope.txt", pages: [{ page: null, text: scenario.title }] }).document;
+      const draft = store.ensureDraft(eventId);
+      const saved = store.saveDraft(draft.id, { expectedRevision: draft.editRevision, body: { schemaVersion: 1, sources: [{ documentId: source.id, confirmed: true, applicabilityNote: "人工确认适用于2026软件赛当前阶段；不能覆盖明确不相符的原文" }], fields: { "team.studentMax": field("integer", 3) } }, evidence: [evidence("team.studentMax", source.id, f.store.getChunks([source.id])[0].id)] });
+      if (scenario.accepted) assert.equal(store.publish(saved.id, saved.editRevision).status, "published", scenario.title);
+      else rejects(() => store.publish(saved.id, saved.editRevision));
+    } finally { f.cleanup(); }
+  }
+});
+
+test("historical catalog can be selected for school background but never confirms current-year category", () => {
+  const f = competitionFixture();
+  try {
+    const catalog = f.store.importDocument({ title: "2024学校竞赛认定目录", competition: "学校目录", kind: "catalog", year: "2024", stage: "学校认定", sourceUrl: "", fileName: "catalog.txt", pages: [{ page: null, text: "2024测试学校认定B类" }] }).document;
+    const draft = f.store.competitions.ensureDraft(f.createEvent());
+    const ruleBody: RuleBody = { schemaVersion: 1, sources: [{ documentId: f.document.id, confirmed: true, applicabilityNote: "2026软件赛通用规则" }, { documentId: catalog.id, confirmed: true, applicabilityNote: "仅用于2024学校历史认定背景，不作2026认定" }], fields: { "team.studentMax": field("integer", 3), "school.name": field("text", "测试学校"), "school.basisYear": field("integer", 2024), "school.category": field("text", "B类") } };
+    const proof = [evidence("team.studentMax", f.document.id, f.chunk.id), ...(["school.name", "school.basisYear", "school.category"] as const).map(p => evidence(p, catalog.id, f.store.getChunks([catalog.id])[0].id))];
+    const saved = f.store.competitions.saveDraft(draft.id, { expectedRevision: 0, body: ruleBody, evidence: proof });
+    rejects(() => f.store.competitions.publish(saved.id, saved.editRevision));
+    ruleBody.fields["school.basisYear"]!.value = 2026;
+    const wrongYear = f.store.competitions.saveDraft(saved.id, { expectedRevision: saved.editRevision, body: ruleBody, evidence: proof });
+    rejects(() => f.store.competitions.publish(wrongYear.id, wrongYear.editRevision));
+    ruleBody.fields["school.category"] = field("text", null, "unknown");
+    ruleBody.fields["school.basisYear"]!.value = 2024;
+    const background = f.store.competitions.saveDraft(saved.id, { expectedRevision: wrongYear.editRevision, body: ruleBody, evidence: proof.filter(e => e.fieldPath !== "school.category") });
+    assert.equal(f.store.competitions.publish(background.id, background.editRevision).status, "published");
+  } finally { f.cleanup(); }
+});
+
+test("current school category clones valid proof and latest needs-review resets every valued field and source", () => {
+  const f = competitionFixture();
+  let db: Database.Database | undefined;
+  try {
+    const catalog = f.store.importDocument({ title: "2026学校竞赛认定目录", competition: "学校目录", kind: "catalog", year: "2026", stage: "学校认定", sourceUrl: "", fileName: "catalog.txt", pages: [{ page: null, text: "2026测试学校认定B类" }] }).document;
+    const draft = f.store.competitions.ensureDraft(f.createEvent());
+    const ruleBody: RuleBody = { schemaVersion: 1, sources: [{ documentId: f.document.id, confirmed: true, applicabilityNote: "2026软件赛通用规则" }, { documentId: catalog.id, confirmed: true, applicabilityNote: "2026学校认定" }], fields: { "team.studentMax": field("integer", 3), "team.teacherMin": field("integer", 0), "student.fullTimeRequired": field("boolean", false), "school.name": field("text", "测试学校"), "school.basisYear": field("integer", 2026), "school.category": field("text", "B类"), "tags.skills": field("texts", ["编程"], "confirmed", "人工建议"), "team.teacherMax": field("integer", null, "unknown") } };
+    const proof = [...(["team.studentMax", "team.teacherMin", "student.fullTimeRequired"] as const).map(p => evidence(p, f.document.id, f.chunk.id)), ...(["school.name", "school.basisYear", "school.category"] as const).map(p => evidence(p, catalog.id, f.store.getChunks([catalog.id])[0].id))];
+    const saved = f.store.competitions.saveDraft(draft.id, { expectedRevision: 0, body: ruleBody, evidence: proof });
+    const published = f.store.competitions.publish(saved.id, saved.editRevision);
+    const clone = f.store.competitions.ensureDraft(published.eventId);
+    assert.deepEqual(clone.body, published.body);
+    assert.deepEqual(clone.evidence, published.evidence);
+    db = new Database(path.join(f.root, "knowledge.sqlite"));
+    db.prepare("UPDATE competition_rule_versions SET status='needs_review' WHERE id=?").run(clone.id);
+    const review = f.store.competitions.ensureDraft(published.eventId);
+    assert.equal(review.version, 3);
+    assert.equal(review.body.fields["team.teacherMin"]?.value, 0);
+    assert.equal(review.body.fields["student.fullTimeRequired"]?.value, false);
+    for (const entry of Object.values(review.body.fields)) if (entry?.value !== null) assert.equal(entry?.state, "unreviewed");
+    assert.equal(review.body.fields["team.teacherMax"]?.state, "unknown");
+    assert.ok(review.body.sources.every(source => !source.confirmed));
+    assert.deepEqual(review.evidence, published.evidence);
+    assert.deepEqual(f.store.competitions.getVersion(published.id), published);
+  } finally { db?.close(); f.cleanup(); }
+});
+
+test("shared A/B registration sources apply to either group and a clear different group does not", () => {
+  const f = competitionFixture();
+  try {
+    const original = f.store.competitions.getDetail(f.createEvent());
+    const detail = { competition: original.competition, event: { ...original.event, trackName: "A组" } };
+    const source = { ...f.document, title: "2026测试赛事A/B组报名规则" };
+    const ruleBody: RuleBody = { ...body(), sources: [{ documentId: source.id, confirmed: true, applicabilityNote: "适用于2026 A组报名" }] };
+    assert.deepEqual(collectSourceIssues(detail, ruleBody, [], new Map([[source.id, source]])), []);
+    const other = { ...source, title: "2026测试赛事B组规则" };
+    assert.ok(collectSourceIssues(detail, ruleBody, [], new Map([[other.id, other]])).some(issue => issue.fieldPath === "sources"));
+  } finally { f.cleanup(); }
+});
 
 test("SQLite rule initialization preserves sources and persists competition events after reopening", () => {
   const f = competitionFixture();

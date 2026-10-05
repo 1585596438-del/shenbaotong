@@ -31,6 +31,16 @@ export function competitionFixture() {
       }
       return eventId;
     },
+    publishStudentLimit(value = 3) {
+      const draft = store.competitions.ensureDraft(this.createEvent());
+      const saved = store.competitions.saveDraft(draft.id, {
+        expectedRevision: draft.editRevision,
+        body: { schemaVersion: 1, sources: [{ documentId: document.id, applicabilityNote: "适用于2026软件赛通用规则", confirmed: true }],
+          fields: { "team.studentMax": { kind: "integer", value, state: "confirmed", note: "" } } },
+        evidence: [{ fieldPath: "team.studentMax", documentId: document.id, chunkId: chunk.id }],
+      });
+      return store.competitions.publish(saved.id, saved.editRevision);
+    },
     reopen() {
       store.close();
       store = new KnowledgeStore(dbPath);

@@ -3,7 +3,9 @@ import {
   type CreateCompetition, type CreateEvent, type Deadline, type EvidenceInput, type FieldPath,
   type Material, type PublicationIssue, type RuleBody, type RuleField, type RuleKind,
   type RuleSource, type RuleValue, type SaveDraft,
+  type EventDetail,
 } from "./types";
+import type { DocumentKind } from "../types";
 
 const fixedKinds = new Map<string, RuleKind>(FIELD_DEFINITIONS.map(({ path, kind }) => [path, kind]));
 const ITEM_ID = /^[A-Za-z0-9_-]{1,80}$/;
@@ -200,6 +202,75 @@ export function validateSaveDraft(value: unknown): SaveDraft {
     if (!sourceIds.has(entry.documentId)) fail("证据文档必须属于选定来源");
   }
   return { expectedRevision, body, evidence };
+}
+
+export function validateRevision(value: unknown): number {
+  return integer(value, "编辑修订号", 0, Number.MAX_SAFE_INTEGER);
+}
+
+export type SourceMetadata = { id: string; title: string; competition: string; kind: DocumentKind; year: string; stage: string };
+
+// Only explicit metadata is used here; these guards do not infer rules from source prose.
+function yearRanges(text: string): Array<[number, number]> {
+  return Array.from(text.matchAll(/(20\d{2})(?:\s*[-—–~～至/]\s*(20\d{2}))?/g), match => [Number(match[1]), Number(match[2] ?? match[1])]);
+}
+
+const trackMarkers = /软件赛(?:Python|Java|C\+\+)?|硬件赛|电子赛|人工智能赛|软件应用与开发|数字媒体设计|大数据应用|信息可视化设计|(?:[A-Z]组)|(?:[A-Z]类)/gi;
+const stageMarkers = /校赛|省赛|全国总决赛|全国赛|国赛|总决赛|初赛|复赛|决赛/g;
+function stages(text: string): string[] {
+  return Array.from(text.matchAll(stageMarkers), match => /^(全国总决赛|全国赛|国赛)$/.test(match[0]) ? "国赛" : match[0]);
+}
+
+export function collectSourceIssues(detail: Pick<EventDetail, "competition" | "event">, body: RuleBody, evidence: EvidenceInput[], documents: Map<string, SourceMetadata>): PublicationIssue[] {
+  const issues: PublicationIssue[] = [];
+  const add = (fieldPath: string, message: string) => issues.push({ fieldPath, message });
+  const { competition, event } = detail;
+  for (const source of body.sources) {
+    const document = documents.get(source.documentId);
+    if (!document) { add("sources", "选定来源已不存在"); continue; }
+    const schoolOnly = document.kind === "catalog" || document.kind === "policy";
+    if (schoolOnly) {
+      if (!/学校|认定|school/i.test(source.applicabilityNote)) add("sources", "目录或管理政策须明确仅适用于学校认定背景");
+    } else {
+      const scopeText = `${document.title} ${document.competition}`;
+      const names = [competition.name, ...competition.aliases];
+      if (!names.some(name => scopeText.includes(name)) && !scopeText.includes(event.trackName)) add("sources", "来源赛事或赛道不相符");
+      for (const metadata of [document.year, document.title]) {
+        const ranges = yearRanges(metadata);
+        if (ranges.length && !ranges.some(([start, end]) => start <= event.yearEnd && end >= event.yearStart)) add("sources", "来源明确年份与届次不相符");
+      }
+      if (!yearRanges(`${document.year} ${document.title}`).length && (!source.confirmed || !source.applicabilityNote.trim())) add("sources", "无明确年份的来源须人工确认适用范围");
+      // Expand explicit shared group notation before matching individual group markers.
+      const trackText = scopeText.replace(/([A-Z](?:\s*[/、与和]\s*[A-Z])+)(组|类)/gi,
+        (_, letters: string, suffix: string) => (letters.match(/[A-Z]/gi) ?? []).map(letter => `${letter}${suffix}`).join("、"));
+      const tracks = Array.from(trackText.matchAll(trackMarkers), match => match[0].toLowerCase());
+      const eventTrack = event.trackName.toLowerCase();
+      if (tracks.length && !tracks.some(track => eventTrack.includes(track) || track.includes(eventTrack))) add("sources", "来源明确赛道与当前赛道不相符");
+      const sourceStages = stages(`${document.title} ${document.stage}`);
+      const eventStages = stages(event.stage);
+      if (sourceStages.length && eventStages.length && !sourceStages.some(stage => eventStages.includes(stage))) add("sources", "来源明确阶段与当前阶段不相符");
+    }
+    if (!source.applicabilityNote.trim()) add("sources", "每个来源均须填写适用说明");
+  }
+  for (const entry of evidence) {
+    const document = documents.get(entry.documentId);
+    if (!document) { add(entry.fieldPath, "证据文档已不存在"); continue; }
+    if ((document.kind === "catalog" || document.kind === "policy") && !entry.fieldPath.startsWith("school.")) add(entry.fieldPath, "目录或管理政策不能证明官方参赛规则");
+  }
+  const category = body.fields["school.category"];
+  if (category?.state === "confirmed" && category.value !== null) {
+    const school = body.fields["school.name"];
+    const basis = body.fields["school.basisYear"];
+    if (school?.state !== "confirmed" || school.value === null || basis?.state !== "confirmed" || basis.value !== event.yearEnd) add("school.category", "学校类别须有已确认学校名称与当前届次适用年");
+    const categoryProof = evidence.filter(entry => entry.fieldPath === "school.category");
+    if (!categoryProof.some(entry => {
+      const document = documents.get(entry.documentId);
+      if (!document) return false;
+      const ranges = yearRanges(`${document.year} ${document.title}`);
+      return ranges.length > 0 && ranges.every(([start, end]) => start === basis?.value && end === basis?.value);
+    })) add("school.category", "学校认定原文年份须与认定适用年和赛事结束年一致");
+  }
+  return issues;
 }
 
 export function collectPublicationIssues(body: RuleBody, evidence: EvidenceInput[]): PublicationIssue[] {
