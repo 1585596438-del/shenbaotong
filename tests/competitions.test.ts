@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import Database from "better-sqlite3";
+import path from "node:path";
+import { competitionFixture } from "./helpers/competition-fixture";
 import { CompetitionError, FIELD_DEFINITIONS, emptyRuleBody, type FieldPath, type RuleBody, type RuleField } from "../src/server/competitions/types";
 import { collectPublicationIssues, validateBody, validateCalendar, validateCreateCompetition, validateCreateEvent, validateEvidenceInputs, validateSaveDraft } from "../src/server/competitions/validation";
 
@@ -9,6 +12,138 @@ const competition = () => ({ name: "测试赛", aliases: ["别名"], catalogNumb
 const event = () => ({ competitionId: "competition-1", editionLabel: "第十届", yearStart: 2026, yearEnd: 2026, trackName: "通用", stage: "全国赛" });
 const evidence = (fieldPath: FieldPath = "content.summary", documentId = "doc-1", chunkId = "chunk-1") => ({ fieldPath, documentId, chunkId });
 const rejects = (fn: () => unknown) => assert.throws(fn, (error: unknown) => error instanceof CompetitionError && error.status === 400);
+
+test("SQLite rule initialization preserves sources and persists competition events after reopening", () => {
+  const f = competitionFixture();
+  try {
+    const competition = f.store.competitions.createCompetition({ name: "测试赛事", aliases: ["测试杯"], catalogNumber: 25, catalogYear: 2024, officialUrl: "https://example.edu/contest" });
+    const event = f.store.competitions.createEvent({ competitionId: competition.id, editionLabel: "2026第1届", yearStart: 2026, yearEnd: 2026, trackName: "软件赛", stage: "通用规则" });
+    f.reopen();
+    f.reopen();
+    assert.equal(f.store.listDocuments().length, 1);
+    assert.equal(f.store.getDocument(f.document.id)?.chunks[0].text, "同校学生最多3人。");
+    const detail = f.store.competitions.getDetail(event.id);
+    assert.deepEqual(detail.competition, competition);
+    assert.deepEqual(detail.event, event);
+    assert.deepEqual(detail.versions, []);
+    assert.equal(detail.current, null);
+    assert.equal(detail.draft, null);
+    assert.deepEqual(event.sourceDocumentIds, []);
+    assert.deepEqual(f.store.competitions.list(), [{ competition, event, current: null, draft: null }]);
+  } finally { f.cleanup(); }
+});
+
+test("competition and edition uniqueness return conflicts without creating partial records", () => {
+  const f = competitionFixture();
+  try {
+    const eventId = f.createEvent();
+    assert.equal(f.createEvent(), eventId);
+    const detail = f.store.competitions.getDetail(eventId);
+    const conflict = (fn: () => unknown) => assert.throws(fn, (error: unknown) => error instanceof CompetitionError && error.status === 409 && /已存在/.test(error.message));
+    conflict(() => f.store.competitions.createCompetition({ name: "测试赛事", aliases: [], catalogNumber: null, catalogYear: null, officialUrl: "" }));
+    const input = { competitionId: detail.competition.id, editionLabel: "2026第1届", yearStart: 2026, yearEnd: 2026, trackName: "软件赛", stage: "通用规则" };
+    conflict(() => f.store.competitions.createEvent(input));
+    f.store.competitions.createEvent({ ...input, stage: "全国赛" });
+    f.store.competitions.createEvent({ ...input, trackName: "硬件赛" });
+    assert.equal(f.store.competitions.list().length, 3);
+  } finally { f.cleanup(); }
+});
+
+test("competition metadata lists parents even when no editions have been created", () => {
+  const f = competitionFixture();
+  try {
+    assert.deepEqual(f.store.competitions.listCompetitions(), []);
+    const parent = f.store.competitions.createCompetition(competition());
+    assert.deepEqual(f.store.competitions.listCompetitions(), [parent]);
+    assert.deepEqual(f.store.competitions.list(), []);
+    f.reopen();
+    assert.deepEqual(f.store.competitions.listCompetitions(), [parent]);
+  } finally { f.cleanup(); }
+});
+
+test("store rejects invalid creation payloads and reports missing competition, event and version", () => {
+  const f = competitionFixture();
+  try {
+    assert.deepEqual(f.store.competitions.list(), []);
+    const missing = (fn: () => unknown) => assert.throws(fn, (error: unknown) => error instanceof CompetitionError && error.status === 404);
+    missing(() => f.store.competitions.createEvent(event()));
+    missing(() => f.store.competitions.getDetail("missing-event"));
+    missing(() => f.store.competitions.getVersion("missing-version"));
+    rejects(() => f.store.competitions.createCompetition({ ...competition(), name: " " }));
+    rejects(() => f.store.competitions.createEvent({ ...event(), sourceDocumentIds: [f.document.id] } as never));
+    assert.deepEqual(f.store.competitions.list(), []);
+    assert.deepEqual(f.store.competitions.getDetail(f.createEvent()).event.sourceDocumentIds, []);
+  } finally { f.cleanup(); }
+});
+
+test("queries deserialize version bodies and plain evidence, selecting only published and draft statuses", () => {
+  const f = competitionFixture();
+  let db: Database.Database | undefined;
+  try {
+    const eventId = f.createEvent();
+    db = new Database(path.join(f.root, "knowledge.sqlite"));
+    db.pragma("foreign_keys = ON");
+    const ruleBody = { ...body({ "team.studentMax": field("integer", 3) }), sources: [{ documentId: f.document.id, applicabilityNote: "2026通用规则", confirmed: true }] };
+    const createdAt = "2026-10-05T00:00:00.000Z";
+    const insert = db.prepare("INSERT INTO competition_rule_versions (id,eventId,version,status,bodyJson,editRevision,createdAt,updatedAt,publishedAt) VALUES (?,?,?,?,?,?,?,?,?)");
+    for (const [version, status] of [[1, "archived"], [2, "published"], [3, "needs_review"], [4, "draft"]] as const) {
+      insert.run(`version-${version}`, eventId, version, status, JSON.stringify(ruleBody), 7, createdAt, createdAt, status === "published" ? createdAt : null);
+    }
+    db.prepare("INSERT INTO competition_rule_evidence (id,versionId,fieldPath,documentId,chunkId) VALUES (?,?,?,?,?)").run("evidence-1", "version-2", "team.studentMax", f.document.id, f.chunk.id);
+    db.close(); db = undefined;
+    f.reopen();
+    const current = f.store.competitions.getVersion("version-2");
+    assert.deepEqual(current, { id: "version-2", eventId, version: 2, status: "published", body: ruleBody, evidence: [{ fieldPath: "team.studentMax", documentId: f.document.id, chunkId: f.chunk.id }], editRevision: 7, createdAt, updatedAt: createdAt, publishedAt: createdAt });
+    const detail = f.store.competitions.getDetail(eventId);
+    assert.deepEqual(detail.versions.map(version => version.version), [4, 3, 2, 1]);
+    assert.deepEqual(detail.current, current);
+    assert.equal(detail.draft?.id, "version-4");
+    assert.deepEqual(f.store.competitions.list(), [{ competition: detail.competition, event: detail.event, current, draft: detail.draft }]);
+    const detached = f.store.competitions.getDetail(eventId);
+    detached.competition.aliases.push("changed");
+    detached.current!.body.fields["team.studentMax"]!.value = 99;
+    assert.deepEqual(f.store.competitions.getDetail(eventId).competition.aliases, ["测试杯"]);
+    assert.equal(f.store.competitions.getVersion("version-2").body.fields["team.studentMax"]?.value, 3);
+    db = new Database(path.join(f.root, "knowledge.sqlite"));
+    db.prepare("UPDATE competition_rule_versions SET status='archived' WHERE id='version-2'").run();
+    db.prepare("UPDATE competition_rule_versions SET status='needs_review' WHERE id='version-4'").run();
+    assert.equal(f.store.competitions.getDetail(eventId).current, null);
+    assert.equal(f.store.competitions.getDetail(eventId).draft, null);
+    assert.equal(f.store.competitions.list()[0].current, null);
+    assert.equal(f.store.competitions.list()[0].draft, null);
+  } finally { db?.close(); f.cleanup(); }
+});
+
+test("incremental schema enforces version uniqueness, statuses and evidence foreign keys", () => {
+  const f = competitionFixture();
+  let db: Database.Database | undefined;
+  try {
+    const eventId = f.createEvent();
+    f.reopen();
+    db = new Database(path.join(f.root, "knowledge.sqlite"));
+    db.pragma("foreign_keys = ON");
+    const insert = db.prepare("INSERT INTO competition_rule_versions (id,eventId,version,status,bodyJson,editRevision,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?)");
+    const add = (id: string, version: number, status: string, parent = eventId) => insert.run(id, parent, version, status, JSON.stringify(emptyRuleBody()), 0, "now", "now");
+    add("draft-1", 1, "draft");
+    assert.throws(() => add("draft-2", 2, "draft"), /UNIQUE/);
+    add("published-1", 2, "published");
+    assert.throws(() => add("published-2", 3, "published"), /UNIQUE/);
+    assert.throws(() => add("same-version", 1, "archived"), /UNIQUE/);
+    assert.throws(() => add("invalid-status", 3, "invalid"), /CHECK/);
+    assert.throws(() => add("missing-event", 3, "archived", "missing"), /FOREIGN KEY/);
+    const evidenceInsert = db.prepare("INSERT INTO competition_rule_evidence (id,versionId,fieldPath,documentId,chunkId) VALUES (?,?,?,?,?)");
+    assert.throws(() => evidenceInsert.run("bad-doc", "draft-1", "team.studentMax", "missing", f.chunk.id), /FOREIGN KEY/);
+    assert.throws(() => evidenceInsert.run("bad-chunk", "draft-1", "team.studentMax", f.document.id, "missing"), /FOREIGN KEY/);
+    assert.throws(() => evidenceInsert.run("bad-version", "missing", "team.studentMax", f.document.id, f.chunk.id), /FOREIGN KEY/);
+    evidenceInsert.run("good", "draft-1", "team.studentMax", f.document.id, f.chunk.id);
+    assert.throws(() => evidenceInsert.run("duplicate", "draft-1", "team.studentMax", f.document.id, f.chunk.id), /UNIQUE/);
+    db.prepare("DELETE FROM competition_rule_versions WHERE id=?").run("draft-1");
+    assert.deepEqual(db.prepare("SELECT id FROM competition_rule_evidence").all(), []);
+    evidenceInsert.run("source-deleted", "published-1", "team.studentMax", f.document.id, f.chunk.id);
+    f.store.deleteDocument(f.document.id);
+    assert.deepEqual(f.store.competitions.getVersion("published-1").evidence, []);
+  } finally { db?.close(); f.cleanup(); }
+});
 
 test("omitted fields and unknown null preserve incomplete drafts, including false and zero", () => {
   assert.deepEqual(emptyRuleBody(), { schemaVersion: 1, sources: [], fields: {} });

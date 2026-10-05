@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { splitPages } from "./chunking";
+import { CompetitionStore } from "./competitions/store";
 import type { Answer, Chunk, DocumentInput, KnowledgeDocument } from "./types";
 
 export class StaleCitationError extends Error {
@@ -11,6 +12,7 @@ export class StaleCitationError extends Error {
 
 export class KnowledgeStore {
   private db: Database.Database;
+  readonly competitions: CompetitionStore;
 
   constructor(filePath: string) {
     mkdirSync(path.dirname(filePath), { recursive: true });
@@ -32,6 +34,7 @@ export class KnowledgeStore {
       CREATE INDEX IF NOT EXISTS chunks_document ON chunks(documentId, sequence);
       CREATE TABLE IF NOT EXISTS answers (id TEXT PRIMARY KEY, body TEXT NOT NULL, createdAt TEXT NOT NULL);
     `);
+    this.competitions = new CompetitionStore(this.db);
   }
 
   listDocuments(): KnowledgeDocument[] {
