@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-05-competition-rules-design.md`，用户已确认。
 
-**执行状态：** 用户已审阅计划并选择子代理分任务执行。Task 1、2 已完成双阶段审查，开始 Task 3；其余未勾选步骤仍待执行。
+**执行状态：** 用户已审阅计划并选择子代理分任务执行。Task 1～3 已完成双阶段审查，开始 Task 4；其余未勾选步骤仍待执行。
 
 ---
 
@@ -335,7 +335,7 @@ createCompetition/createEvent 用参数化 INSERT 和 randomUUID；接口用户�
 
 **Files:** Modify store.ts、validation.ts、tests/competitions.test.ts。
 
-- [ ] **Step 1：写无依据发布、错误文档片段和修改版本冲突测试。** 使用 fixture 的 document/chunk 配置一条已确认 studentMax=3；先不给证据验证发布失败，再给正确证据发布成功。另一个文档的 chunkId 不能与当前 documentId 搭配；旧 expectedRevision 必须409。
+- [x] **Step 1：写无依据发布、错误文档片段和修改版本冲突测试。** 使用 fixture 的 document/chunk 配置一条已确认 studentMax=3；先不给证据验证发布失败，再给正确证据发布成功。另一个文档的 chunkId 不能与当前 documentId 搭配；旧 expectedRevision 必须409。
 
 ```ts
 test("确认值必须有真实依据，旧窗口不能覆盖草稿", () => {
@@ -358,8 +358,8 @@ test("确认值必须有真实依据，旧窗口不能覆盖草稿", () => {
 });
 ```
 
-- [ ] **Step 2：运行测试，观察发布与草稿行为缺失。** `npx tsx --test tests/competitions.test.ts`。
-- [ ] **Step 3：实现 ensureDraft、saveDraft 和 publish 的事务。** ensureDraft 克隆版本时仅复制仍有效证据；缺失依据的官方字段退回unreviewed。saveDraft 拒绝非draft、错误版本、未知fieldPath；事务内验证证据、替换body和evidence并递增revision。保存允许有值但未绑定证据的unreviewed草稿，发布不允许。核心事务順序如下，实施代码按此顺序调用已定义方法：
+- [x] **Step 2：运行测试，观察发布与草稿行为缺失。** `npx tsx --test tests/competitions.test.ts`。
+- [x] **Step 3：实现 ensureDraft、saveDraft 和 publish 的事务。** ensureDraft 克隆版本时仅复制仍有效证据；缺失依据的官方字段退回unreviewed。saveDraft 拒绝非draft、错误版本、未知fieldPath；事务内验证证据、替换body和evidence并递增revision。保存允许有值但未绑定证据的unreviewed草稿，发布不允许。核心事务順序如下，实施代码按此顺序调用已定义方法：
 
 ```ts
 publish(versionId: string, expectedRevision: number): RuleVersion {
@@ -386,8 +386,8 @@ publicationIssues 在同一连接查询实时原文，调用 collectPublicationI
 
 来源适用性：公告/规则的赛事名应匹配母赛事name/aliases或赛道名称；解析资料year中的全部20xx年，至少与event范围重叠。标题含另一明确赛道时不能继承其特有规则；通用母赛事规则允许继承并写明说明。没有可解析年份的资料须有适用说明并人工确认，存在明确不同年份不允许以说明绕过。catalog/policy仅供school.*，不能给team/student/deadlines作依据；确认school.category要求school.name、school.basisYear也确认，原文适用年份与basisYear及event.yearEnd相符。复杂数值关系不做隐式推算，跨校/教师条款例外写明正文并保留待确认项。
 
-- [ ] **Step 4：运行测试并加版本分离案例。** 发布v1后新草稿编辑不改变v1；发布v2只保留一个published，v1变archived；双次发布和两次创建草稿均不会重复生成。
-- [ ] **Step 5：提交审核版本功能。** `git add src/server/competitions/store.ts src/server/competitions/validation.ts tests/competitions.test.ts`；`git commit -m "feat: publish evidence-backed competition rule versions"`。
+- [x] **Step 4：运行测试并加版本分离案例。** 发布v1后新草稿编辑不改变v1；发布v2只保留一个published，v1变archived；双次发布和两次创建草稿均不会重复生成。
+- [x] **Step 5：提交审核版本功能。** `git add src/server/competitions/store.ts src/server/competitions/validation.ts tests/competitions.test.ts`；`git commit -m "feat: publish evidence-backed competition rule versions"`。
 
 ## Task 4：删除来源时立即撤销规则依据
 
