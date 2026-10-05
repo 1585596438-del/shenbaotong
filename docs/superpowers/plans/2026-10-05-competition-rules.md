@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-05-competition-rules-design.md`，用户已确认。
 
-**执行状态：** 计划待审阅与选择执行方式。以下均为开发步骤，不是已完成成果。
+**执行状态：** 用户已审阅计划并选择子代理分任务执行。Task 1 已完成双阶段审查，开始 Task 2；其余未勾选步骤仍待执行。
 
 ---
 
@@ -163,7 +163,7 @@ export function emptyRuleBody(): RuleBody {
 
 **Files:** Create types.ts、validation.ts、tests/competitions.test.ts。
 
-- [ ] **Step 1：写字段、未知值和日期边界测试。** 验证整数非负、上下限、unknown=null、禁止伪造时刻和无效日历日期。使用下面的测试入口，后续每类约束补一个有业务区别的案例。
+- [x] **Step 1：写字段、未知值和日期边界测试。** 验证整数非负、上下限、unknown=null、禁止伪造时刻和无效日历日期。使用下面的测试入口，后续每类约束补一个有业务区别的案例。
 
 ```ts
 import test from "node:test";
@@ -188,8 +188,8 @@ test("日期精度和真实日历日期独立校验", () => {
 });
 ```
 
-- [ ] **Step 2：运行测试观察缺少模块的失败。** `npx tsx --test tests/competitions.test.ts`。预期首次失败为未实现模块，不把权限异常计为红灯。
-- [ ] **Step 3：实现上方类型与验证入口。** `validateBody(value: unknown): RuleBody` 逐项验证后返回新构造对象，拒绝未知对象键和路径；不通过类型断言直接接受网络输入。固定路径与 kind 一一对应；deadlines.* 必须 date，materials.* 必须 material。未知值必须 null，有值不能为 null；空字符串或空数组不能代表确定“不限”，使用明确文字。核心日期函数如下：
+- [x] **Step 2：运行测试观察缺少模块的失败。** `npx tsx --test tests/competitions.test.ts`。预期首次失败为未实现模块，不把权限异常计为红灯。
+- [x] **Step 3：实现上方类型与验证入口。** `validateBody(value: unknown): RuleBody` 逐项验证后返回新构造对象，拒绝未知对象键和路径；不通过类型断言直接接受网络输入。固定路径与 kind 一一对应；deadlines.* 必须 date，materials.* 必须 material。未知值必须 null，有值不能为 null；空字符串或空数组不能代表确定“不限”，使用明确文字。核心日期函数如下：
 
 ```ts
 export function validateCalendar(value: string, precision: "date" | "datetime") {
@@ -208,10 +208,10 @@ export function validateCalendar(value: string, precision: "date" | "datetime") 
 }
 ```
 
-具体上限：名字160字、说明/规则正文2000字、适用说明500字、路径/itemId80字；sources最多30、fields最多100、文本数组最多30项且每项80字、deadline/material各最多20条；人数整数0—1000，school.basisYear及赛道年份2000—2100。JSON 按 UTF-8 字节最多65536。material 与 date 的 itemId 必须等于路径后缀，防止换排序后依据错位。固定字段可缺省，前端补显示 unknown。验证方法名固定为 validateBody、validateCreateCompetition、validateCreateEvent、validateEvidenceInputs、validateSaveDraft、validateCalendar、collectPublicationIssues，不再增加第二套规则定义。
+具体上限：名字及赛事别名160字、说明/规则正文2000字、适用说明500字、路径/itemId80字；sources最多30、fields最多100、规则文本数组最多30项且每项80字、deadline/material各最多20条；人数整数0—1000，school.basisYear及赛道年份2000—2100。JSON 按 UTF-8 字节最多65536。material 与 date 的 itemId 必须等于路径后缀，防止换排序后依据错位。固定字段可缺省，前端补显示 unknown。验证方法名固定为 validateBody、validateCreateCompetition、validateCreateEvent、validateEvidenceInputs、validateSaveDraft、validateCalendar、collectPublicationIssues，不再增加第二套规则定义。
 
-- [ ] **Step 4：运行同一测试命令，预期全部字段测试通过。** 然后 `npm run typecheck` 检查契约类型。
-- [ ] **Step 5：提交本任务实际实现与测试。** `git add src/server/competitions/types.ts src/server/competitions/validation.ts tests/competitions.test.ts`；`git commit -m "feat: define validated competition rule fields"`。
+- [x] **Step 4：运行同一测试命令，预期全部字段测试通过。** 然后 `npm run typecheck` 检查契约类型。
+- [x] **Step 5：提交本任务实际实现与测试。** `git add src/server/competitions/types.ts src/server/competitions/validation.ts tests/competitions.test.ts`；`git commit -m "feat: define validated competition rule fields"`。
 
 ## Task 2：共享连接、增量建表与赛事建档
 
@@ -219,7 +219,7 @@ export function validateCalendar(value: string, precision: "date" | "datetime") 
 
 - [ ] **Step 1：写旧数据保留及重开数据库的测试。** helper 使用 mkdtempSync 创建路径、KnowledgeStore 导入一份简短原文，返回 store、document、chunk 和 cleanup。cleanup 先关闭数据库再删除临时目录；不触及用户 data。
 
-测试文件从helper导入competitionFixture，错误断言从types.ts导入CompetitionError。helper提供后续所有测试调用的方法，不引用未定义的测试便利函数：
+测试文件从helper导入competitionFixture，错误断言从types.ts导入CompetitionError。下面是各任务完成后的完整helper：Task 2 先实现createEvent/reopen/cleanup；publishStudentLimit随Task 3加入，seedManifest随Task 8加入，不为未实现方法添加占位实现。
 
 ```ts
 import { createHash } from "node:crypto";
@@ -683,9 +683,9 @@ main().catch(error => {
 
 接口名和属性均沿用固定数据契约；只保存draft/published/archived/needs_review状态，字段另用RuleState。实施时若发现既有数据与清单不一致，先展示具体缺失项，不补造规则值或自动调整届次。
 
-## 执行方式待选择
+## 执行方式已选择
 
 1. 子代理分任务执行（技能推荐）：每个任务由新的实现代理完成，主会话逐项审查与验证；使用 subagent-driven-development。
 2. 当前会话逐项执行：由当前代理顺序开发并记录验收，使用 executing-plans。
 
-用户审阅本计划并选择执行方式后开始Task 1。不需要再次确认密钥、模型供应商或已同意的三个赛事范围。
+用户已选择方式1（子代理分任务执行），当前会话持续执行并逐项审查。无需在任务之间再次确认继续，也不需要再次确认密钥、模型供应商或三个赛事范围。
