@@ -205,6 +205,49 @@ test("shared A/B registration sources apply to either group and a clear differen
   } finally { f.cleanup(); }
 });
 
+test("specific software subjects cannot provide Python rules but generic and all-subject notices apply", () => {
+  const f = competitionFixture();
+  try {
+    const original = f.store.competitions.getDetail(f.createEvent());
+    const detail = { competition: original.competition, event: { ...original.event, trackName: "软件赛Python" } };
+    const ruleBody: RuleBody = { ...body(), sources: [{ documentId: f.document.id, confirmed: true, applicabilityNote: "人工确认2026软件赛Python" }] };
+    for (const subject of ["C/C++", "C / C ++", "C++", "C", "Web", "网络安全", "软件测试", "Java"]) {
+      const source = { ...f.document, title: `2026测试赛事软件赛${subject}规则` };
+      assert.ok(collectSourceIssues(detail, ruleBody, [], new Map([[source.id, source]])).some(issue => issue.fieldPath === "sources"), subject);
+      const metadataOnly = { ...source, title: "2026测试赛事规则", competition: `测试赛事／软件赛${subject}` };
+      assert.ok(collectSourceIssues(detail, ruleBody, [], new Map([[source.id, metadataOnly]])).some(issue => issue.fieldPath === "sources"), `${subject} competition metadata`);
+    }
+    for (const title of ["2026测试赛事软件赛规则", "2026测试赛事软件赛全部科目时间通知", "2026测试赛事软件赛所有科目规则", "2026测试赛事软件赛C/C++、Python、Java、Web时间通知", "2026测试赛事软件赛 Python 规则"]) {
+      const source = { ...f.document, title };
+      assert.deepEqual(collectSourceIssues(detail, ruleBody, [], new Map([[source.id, source]])), [], title);
+    }
+    for (const variant of ["C/C++", "C / C ++", "C++", "C"]) {
+      const source = { ...f.document, title: `2026测试赛事软件赛${variant}规则` };
+      const cDetail = { ...detail, event: { ...detail.event, trackName: "软件赛C/C++" } };
+      assert.deepEqual(collectSourceIssues(cDetail, ruleBody, [], new Map([[source.id, source]])), [], variant);
+    }
+  } finally { f.cleanup(); }
+});
+
+test("national final stage names are equivalent while provincial and initial stages remain distinct", () => {
+  const f = competitionFixture();
+  try {
+    const original = f.store.competitions.getDetail(f.createEvent());
+    const ruleBody: RuleBody = { ...body(), sources: [{ documentId: f.document.id, confirmed: true, applicabilityNote: "人工确认国赛阶段" }] };
+    for (const eventStage of ["总决赛", "全国总决赛", "国赛", "全国赛"]) {
+      const detail = { competition: original.competition, event: { ...original.event, stage: eventStage } };
+      for (const sourceStage of ["总决赛", "全国总决赛", "国赛", "全国赛"]) {
+        const source = { ...f.document, title: `2026测试赛事${sourceStage}规则`, stage: sourceStage };
+        assert.deepEqual(collectSourceIssues(detail, ruleBody, [], new Map([[source.id, source]])), [], `${sourceStage} -> ${eventStage}`);
+      }
+      for (const sourceStage of ["省赛", "初赛"]) {
+        const source = { ...f.document, title: `2026测试赛事${sourceStage}规则`, stage: sourceStage };
+        assert.ok(collectSourceIssues(detail, ruleBody, [], new Map([[source.id, source]])).some(issue => issue.fieldPath === "sources"));
+      }
+    }
+  } finally { f.cleanup(); }
+});
+
 test("SQLite rule initialization preserves sources and persists competition events after reopening", () => {
   const f = competitionFixture();
   try {

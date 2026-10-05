@@ -215,10 +215,17 @@ function yearRanges(text: string): Array<[number, number]> {
   return Array.from(text.matchAll(/(20\d{2})(?:\s*[-—–~～至/]\s*(20\d{2}))?/g), match => [Number(match[1]), Number(match[2] ?? match[1])]);
 }
 
-const trackMarkers = /软件赛(?:Python|Java|C\+\+)?|硬件赛|电子赛|人工智能赛|软件应用与开发|数字媒体设计|大数据应用|信息可视化设计|(?:[A-Z]组)|(?:[A-Z]类)/gi;
+const trackMarkers = /软件赛|硬件赛|电子赛|人工智能赛|软件应用与开发|数字媒体设计|大数据应用|信息可视化设计|(?:[A-Z]组)|(?:[A-Z]类)/gi;
 const stageMarkers = /校赛|省赛|全国总决赛|全国赛|国赛|总决赛|初赛|复赛|决赛/g;
 function stages(text: string): string[] {
-  return Array.from(text.matchAll(stageMarkers), match => /^(全国总决赛|全国赛|国赛)$/.test(match[0]) ? "国赛" : match[0]);
+  return Array.from(text.matchAll(stageMarkers), match => /^(全国总决赛|全国赛|国赛|总决赛)$/.test(match[0]) ? "国赛" : match[0]);
+}
+
+function softwareSubjects(text: string): string[] {
+  const normalized = text.replace(/\s+/g, "").toLowerCase();
+  if (!normalized.includes("软件赛") || /软件赛(?:全部|所有|全)科目/.test(normalized)) return [];
+  return Array.from(normalized.matchAll(/python|java|c\/c\+\+|c\+\+|(?<![a-z])c(?![a-z])|web|网络安全|软件测试/g),
+    match => /^c/.test(match[0]) ? "c/c++" : match[0]);
 }
 
 export function collectSourceIssues(detail: Pick<EventDetail, "competition" | "event">, body: RuleBody, evidence: EvidenceInput[], documents: Map<string, SourceMetadata>): PublicationIssue[] {
@@ -246,6 +253,9 @@ export function collectSourceIssues(detail: Pick<EventDetail, "competition" | "e
       const tracks = Array.from(trackText.matchAll(trackMarkers), match => match[0].toLowerCase());
       const eventTrack = event.trackName.toLowerCase();
       if (tracks.length && !tracks.some(track => eventTrack.includes(track) || track.includes(eventTrack))) add("sources", "来源明确赛道与当前赛道不相符");
+      const sourceSubjects = softwareSubjects(scopeText);
+      const eventSubjects = softwareSubjects(event.trackName);
+      if (sourceSubjects.length && eventSubjects.length && !sourceSubjects.some(subject => eventSubjects.includes(subject))) add("sources", "来源明确软件赛科目与当前科目不相符");
       const sourceStages = stages(`${document.title} ${document.stage}`);
       const eventStages = stages(event.stage);
       if (sourceStages.length && eventStages.length && !sourceStages.some(stage => eventStages.includes(stage))) add("sources", "来源明确阶段与当前阶段不相符");
