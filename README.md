@@ -53,6 +53,21 @@ flowchart LR
   H --> I
 ```
 
+## 结构化竞赛规则库进度
+
+2026-10-06已完成规则字段校验、赛事与赛道建档、草稿保存、版本发布、来源删除失效及本地维护接口。规则和知识库共用SQLite连接；发布时重新验证来源和字段确认，旧窗口保存返回409，删除来源会撤销有效发布版本，不自动回退旧版本。新增接口如下：
+
+| 接口 | 用途 |
+| --- | --- |
+| `GET /api/competitions` | 返回母赛事与赛道、当前发布及草稿记录 |
+| `POST /api/competitions` | `{action:"competition",input}` 新建母赛事，或 `{action:"event",input}` 新建赛道 |
+| `GET /api/competitions/events/:id` | 查看赛道及规则版本 |
+| `POST /api/competitions/events/:id/draft` | 创建或继续草稿，无需正文 |
+| `PUT /api/competitions/versions/:id` | `{expectedRevision,body,evidence}` 保存草稿 |
+| `POST /api/competitions/versions/:id/publish` | `{expectedRevision}` 重新核验并发布 |
+
+写操作沿用本地Origin校验；JSON正文按实际UTF-8字节限制为64KB，输入错误、目标不存在及版本冲突分别返回400、404和409。规则维护页面、三个赛事的草稿录入和真实资料操作验收仍待完成，目前网页仍使用原有知识问答与资料库功能。完整执行进度见 [竞赛规则开发与验证记录](docs/竞赛规则开发与验证记录.md)。
+
 ## 自动抓取网页
 
 在“导入资料 → 网址抓取”粘贴官方通知网址，点击“抓取正文”。系统展示标题、正文、来源和附件，核对后填写资料年份、赛事与阶段，点击“确认入库”。网页抓取不调用模型 API；入库后可以立即用原文检索提问。
