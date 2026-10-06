@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-05-competition-rules-design.md`，用户已确认。
 
-**执行状态：** 用户已审阅计划并选择子代理分任务执行。2026-10-06继续：Task 1～5已完成双阶段审查；Task 5保存为本地提交163d79a，主会话完整回归82/82、类型检查及生产构建通过。下一执行点为Task 6列表建档页面，Task 6～9待实施。
+**执行状态：** 用户已审阅计划并选择子代理分任务执行。2026-10-06继续：Task 1～5已完成双阶段审查；Task 5保存为本地提交163d79a，主会话完整回归82/82、类型检查及生产构建通过。Task 6已完成并保存为eab24db，83/83回归、类型检查、生产构建、实际页面验收和双阶段审查通过；下一执行点为Task 7编辑确认页面，Task 7～9待实施。
 
 ---
 
@@ -477,7 +477,7 @@ readRuleJson和competitionErrorResponse放http.ts；validateSaveDraft放validati
 
 **Files:** Create competition-library.tsx；Modify workspace.tsx、globals.css。
 
-- [ ] **Step 1：实现独立列表组件状态与建档表单。** 组件Props为 `{documents:KnowledgeDocument[],onAsk:(documentIds:string[])=>void}`；GET读取items，赛事选择、新建母赛事、建赛道逐次提交。必填name/editionLabel/yearStart/yearEnd/trackName/stage用普通表单；版本状态显示草稿/已发布/需重新审核/历史版本。选中赛道GET detail，并提供“创建/继续草稿”和“查看当前发布”。原文为空也可建档，规则显示待补来源。
+- [x] **Step 1：实现独立列表组件状态与建档表单。** 组件Props为 `{documents:KnowledgeDocument[],onAsk:(documentIds:string[])=>void}`；GET读取items，赛事选择、新建母赛事、建赛道逐次提交。必填name/editionLabel/yearStart/yearEnd/trackName/stage用普通表单；版本状态显示草稿/已发布/需重新审核/历史版本。选中赛道GET detail，并提供“创建/继续草稿”和“查看当前发布”。原文为空也可建档，规则显示待补来源。
 
 ```tsx
 const [items, setItems] = useState<Array<{ competition: Competition; event: CompetitionEvent; current: RuleVersion | null; draft: RuleVersion | null }>>([]);
@@ -500,7 +500,7 @@ async function createDraft() {
 
 ruleApi统一检查HTTP错误，放组件目录的`competition-api.ts`，签名为`ruleApi<T>(path:string,init?:RequestInit):Promise<T>`，返回错误时保留status供409提示；只读取服务端error，不吞掉失败。新组件不导入任何服务端runtime，只用import type。
 
-- [ ] **Step 2：在Workspace增加“竞赛规则”tab和入口。** onAsk设置所选documents并切回chat；不自动提交模型问题。readonly详情显示原文链接、待确认字段和版本号；不显示肯定资格结论。历史标识用北京时间比较已确认报名截止日期：仅小于今天的date值显示“已过报名日期”，datetime按真实时刻比较；日期等于今天不推算时刻。缺少报名截止显示“报名时间待确认”。
+- [x] **Step 2：在Workspace增加“竞赛规则”tab和入口。** onAsk设置所选documents并切回chat；不自动提交模型问题。readonly详情显示原文链接、待确认字段和版本号；不显示肯定资格结论。历史标识用北京时间比较已确认报名截止日期：仅小于今天的date值显示“已过报名日期”，datetime按真实时刻比较；日期等于今天不推算时刻。缺少报名截止显示“报名时间待确认”。
 
 ```tsx
 {tab === "competitions" && <CompetitionLibrary documents={documents} onAsk={ids => {
@@ -509,9 +509,9 @@ ruleApi统一检查HTTP错误，放组件目录的`competition-api.ts`，签名�
 }} />}
 ```
 
-- [ ] **Step 3：补充布局样式并实际操作。** `.competition-layout`桌面两列，宽度小于760px一列，子区域min-width:0；按钮与输入复用已有primary/outline/field。空状态含建档按钮，无来源时提供资料库入口。新建表单校验年度顺序，失败保留输入。测试键盘和390px视口。
-- [ ] **Step 4：运行typecheck与build。** 在浏览器建档并刷新，确认仍存在，错误不会关闭表单。此任务不写镜像UI代码的单元测试。
-- [ ] **Step 5：提交列表与建档。** `git add src/components/competition-library.tsx src/components/competition-api.ts src/components/workspace.tsx src/app/globals.css`；`git commit -m "feat: add competition library and event maintenance views"`。
+- [x] **Step 3：补充布局样式并实际操作。** `.competition-layout`桌面两列，宽度小于760px一列，子区域min-width:0；按钮与输入复用已有primary/outline/field。空状态含建档按钮，无来源时提供资料库入口。新建表单校验年度顺序，失败保留输入。测试键盘和390px视口。
+- [x] **Step 4：运行typecheck与build。** 在浏览器建档并刷新，确认仍存在，错误不会关闭表单。此任务不写镜像UI代码的单元测试。
+- [x] **Step 5：提交列表与建档。** `git add src/components/competition-library.tsx src/components/competition-api.ts src/components/workspace.tsx src/app/globals.css`；`git commit -m "feat: add competition library and event maintenance views"`。
 
 ## Task 7：规则字段编辑、原文依据与确认发布
 

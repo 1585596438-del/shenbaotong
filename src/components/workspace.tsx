@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Answer, Citation, KnowledgeDocument, Chunk } from "@/server/types";
+import { CompetitionLibrary } from "./competition-library";
 import type { WebCapture } from "@/server/webpages";
 
 type Status = { documents: KnowledgeDocument[]; answers: Answer[]; model: { chatReady: boolean; embeddingReady: boolean; chatModel: string; embeddingModel: string; embeddingKey: string } };
@@ -21,7 +22,7 @@ function Icon({ name }: { name: "chat" | "book" | "settings" | "plus" | "arrow" 
 
 export function Workspace() {
   const [status, setStatus] = useState<Status | null>(null);
-  const [tab, setTab] = useState<"chat" | "library" | "settings">("chat");
+  const [tab, setTab] = useState<"chat" | "library" | "competitions" | "settings">("chat");
   const [selected, setSelected] = useState<string[]>([]);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,6 +40,7 @@ export function Workspace() {
   const [preview, setPreview] = useState<Detail | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [indexing, setIndexing] = useState<string | null>(null);
+  const sourceRequest = useRef(0);
   const documents = status?.documents ?? [];
   const answers = status?.answers ?? [];
   const answer = answers.find(a => a.id === activeAnswer) ?? answers.at(-1);
@@ -69,7 +71,7 @@ export function Workspace() {
     const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href]') ?? []);
     if (!dialog?.contains(document.activeElement)) focusable()[0]?.focus();
     const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !uploading && !crawling) { setImporting(false); setPreview(null); }
+      if (event.key === "Escape" && !uploading && !crawling) { setImporting(false); sourceRequest.current++; setPreview(null); }
       if (event.key === "Tab") {
         const items = focusable(), first = items[0], last = items.at(-1);
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -114,11 +116,13 @@ export function Workspace() {
     finally { setCrawling(false); }
   }
   async function openSource(id: string, chunkId?: string) {
+    const request = ++sourceRequest.current;
     try {
       const result = await api<{ document: Detail }>(`/api/documents/${id}`);
+      if (request !== sourceRequest.current) return;
       setPreview(result.document); setHighlight(chunkId ?? null);
-      if (chunkId) setTimeout(() => document.getElementById(`source-${chunkId}`)?.scrollIntoView({ block: "center" }), 100);
-    } catch (e) { setError(e instanceof Error ? e.message : "原文加载失败。"); }
+      if (chunkId) setTimeout(() => { if (request === sourceRequest.current) document.getElementById(`source-${chunkId}`)?.scrollIntoView({ block: "center" }); }, 100);
+    } catch (e) { if (request === sourceRequest.current) setError(e instanceof Error ? e.message : "原文加载失败。"); }
   }
   async function removeDocument(doc: KnowledgeDocument) {
     if (!window.confirm(`删除“${doc.title}”及引用它的问答记录？`)) return;
@@ -142,16 +146,16 @@ export function Workspace() {
   return <div className="workspace">
     <aside className="sidebar">
       <a className="brand" href="/" aria-label="申报通知识库首页"><span className="brand-mark">申</span><span>申报通<small>校园竞赛知识库</small></span></a>
-      <nav aria-label="工作台导航">{(["chat", "library", "settings"] as const).map(t => <button className={tab === t ? "nav-item active" : "nav-item"} key={t} onClick={() => setTab(t)}><Icon name={t === "library" ? "book" : t} />{({ chat: "知识问答", library: "资料库", settings: "运行设置" })[t]}{t === "library" && <span className="count">{documents.length}</span>}</button>)}</nav>
+      <nav aria-label="工作台导航">{(["chat", "library", "competitions", "settings"] as const).map(t => <button className={tab === t ? "nav-item active" : "nav-item"} key={t} onClick={() => setTab(t)}><Icon name={t === "library" || t === "competitions" ? "book" : t} />{({ chat: "知识问答", library: "资料库", competitions: "竞赛规则", settings: "运行设置" })[t]}{t === "library" && <span className="count">{documents.length}</span>}</button>)}</nav>
       <div className="scope-heading"><span>本次检索范围</span><button onClick={() => setSelected([])} disabled={!selected.length}>重置</button></div>
       <label className="scope-all"><input type="checkbox" checked={!selected.length} onChange={() => setSelected([])} />全部资料 <span>{documents.length}</span></label>
       <div className="scope-list">{documents.map(doc => <label className={selected.includes(doc.id) ? "scope-doc checked" : "scope-doc"} key={doc.id}><input type="checkbox" checked={selected.includes(doc.id)} onChange={e => setSelected(ids => e.target.checked ? [...ids, doc.id] : ids.filter(id => id !== doc.id))} /><span>{doc.title}<small>{doc.year || "年份未标注"} · {kinds[doc.kind]}</small></span></label>)}{!documents.length && <p className="sidebar-empty">导入资料后，可以选择只在指定文档中查找。</p>}</div>
       <div className="sidebar-bottom"><span className="local-dot" />本地工作区<small>资料保存在本机</small></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="breadcrumb">工作台 <span>/</span> {({ chat: "知识问答", library: "资料库", settings: "运行设置" })[tab]}</div><button className="primary small" onClick={() => { setError(""); setImporting(true); }}><Icon name="plus" />导入资料</button></header>
+      <header className="topbar"><div className="breadcrumb">工作台 <span>/</span> {({ chat: "知识问答", library: "资料库", competitions: "竞赛规则", settings: "运行设置" })[tab]}</div><button className="primary small" onClick={() => { setError(""); setImporting(true); }}><Icon name="plus" />导入资料</button></header>
       <div className="content">
-        <div className="page-heading"><div><p className="eyebrow">SHENBAOTONG / KNOWLEDGE</p><h1>{({ chat: "让每个答案，都有出处。", library: "从原始资料，建立知识。", settings: "连接模型，开启引用问答。" })[tab]}</h1><p>{tab === "chat" ? "查目录、读政策、找要求。答案与原文放在一起核对。" : tab === "library" ? "按年度和阶段收集资料，保留每个片段的页码与来源。" : "配置仅在服务端读取，认证信息不会传到浏览器。"}</p></div><span className="mode-badge"><span className="local-dot" />{status?.model.chatReady ? "文本模型已配置" : "原文检索模式"}</span></div>
+        <div className="page-heading"><div><p className="eyebrow">SHENBAOTONG / KNOWLEDGE</p><h1>{({ chat: "让每个答案，都有出处。", library: "从原始资料，建立知识。", competitions: "把比赛要求，逐条查清。", settings: "连接模型，开启引用问答。" })[tab]}</h1><p>{tab === "chat" ? "查目录、读政策、找要求。答案与原文放在一起核对。" : tab === "library" ? "按年度和阶段收集资料，保留每个片段的页码与来源。" : tab === "competitions" ? "按届次与赛道核对规则，保留未知项和原文依据。" : "配置仅在服务端读取，认证信息不会传到浏览器。"}</p></div><span className="mode-badge"><span className="local-dot" />{status?.model.chatReady ? "文本模型已配置" : "原文检索模式"}</span></div>
         {error && <div className="alert error" role="alert">{error}<button aria-label="关闭错误提示" onClick={() => setError("")}>×</button></div>}
         {notice && <div className="alert success" role="status">{notice}<button aria-label="关闭提示" onClick={() => setNotice("")}>×</button></div>}
         {!status && !error && <p className="loading" role="status">正在加载本地知识库…</p>}
@@ -167,6 +171,7 @@ export function Workspace() {
           const ready = doc.indexedCount === doc.chunkCount && doc.embeddingKey === status?.model.embeddingKey;
           return <article className="document-row" key={doc.id}><span className="document-icon"><Icon name="book" /></span><div className="document-info"><div className="document-labels"><span>{kinds[doc.kind]}</span><span>{doc.year || "年份未标注"}</span>{doc.stage && <span>{doc.stage}</span>}</div><h3>{doc.title}</h3><p>{doc.pageCount ? `${doc.pageCount} 页 · ` : ""}{doc.chunkCount} 个片段 · {doc.characterCount.toLocaleString()} 字符 <span className={ready ? "index-state ready" : "index-state"}>{ready ? "向量索引就绪" : doc.indexedCount ? "需要重新索引" : "可用原文检索"}</span></p></div><div className="document-actions"><button className="outline small" onClick={() => openSource(doc.id)}>查看原文</button><button className="text-button" disabled={indexing !== null || !status?.model.embeddingReady} onClick={() => index(doc)} title={!status?.model.embeddingReady ? "先在运行设置中配置嵌入模型" : "重新建立此文档的向量索引"}>{indexing === doc.id ? "索引中…" : ready ? "重新索引" : "建立索引"}</button><button className="delete-button" onClick={() => removeDocument(doc)}>删除</button></div></article>;
         })}</section>}
+        {tab === "competitions" && <CompetitionLibrary documents={documents} onSource={openSource} onLibrary={() => setTab("library")} onAsk={ids => { setSelected(ids.filter(id => documents.some(doc => doc.id === id))); setTab("chat"); setNotice("已选择该规则的原文范围，请输入问题后发送。"); }} />}
         {tab === "settings" && <section className="settings"><div className="settings-card"><h2>当前运行状态</h2><dl><dt>文本模型</dt><dd>{status?.model.chatReady ? status.model.chatModel : "未配置 · 展示原文片段"}</dd><dt>嵌入模型</dt><dd>{status?.model.embeddingReady ? status.model.embeddingModel : "未配置 · 使用关键词检索"}</dd><dt>数据保存</dt><dd>本机 SQLite 数据库</dd></dl><p className="settings-note">配置状态表示参数齐全。实际连接结果会在提问和建立索引时检查。</p></div><div className="settings-card"><h2>连接模型服务</h2><p>将项目根目录的 <code>.env.example</code> 复制为 <code>.env.local</code>，在本机填写兼容接口的服务地址、密钥和模型名，然后重启服务。</p><pre>{"AI_BASE_URL=服务接口基础地址（含实际API前缀）\nAI_API_KEY=在本机填写\nAI_CHAT_MODEL=文本模型名称\n\nEMBEDDING_BASE_URL=嵌入接口基础地址\nEMBEDDING_API_KEY=在本机填写\nAI_EMBEDDING_MODEL=嵌入模型名称"}</pre><p>嵌入服务地址及密钥留空时沿用文本服务配置。配置后进入资料库，为文档建立索引。更换嵌入模型后需要重新索引。</p><button className="outline" onClick={() => refresh().catch(e => setError(e.message))}>刷新运行状态</button></div><div className="settings-card"><h2>资料与答案的边界</h2><p>目录收录、学校认定和当年比赛要求应分别查证。历史附件无法证明当前报名时间。没有公开网址的本地资料显示文档标题与页码，系统不会编造网址。</p><p>支持含文字层 PDF、TXT、Markdown 与粘贴正文。单文件最多10MB、50页；扫描件暂不支持识别。</p></div></section>}
       </div>
     </main>
@@ -197,6 +202,6 @@ export function Workspace() {
         <div className="modal-footer"><span>{importMode === "url" ? "核对正文、资料年份和阶段后入库" : "正文先保存，配置模型后可建立向量索引"}</span><button className="primary" type="submit" disabled={uploading || crawling || (importMode === "url" && !capture)}>{uploading ? "解析并保存中…" : importMode === "url" ? "确认入库" : "导入资料"}</button></div>
       </form>
     </section></div>}
-    {preview && <div className="modal-backdrop"><section className="modal source-modal" role="dialog" aria-modal="true" aria-labelledby="source-title"><div className="modal-heading"><div><p className="eyebrow">ORIGINAL SOURCE</p><h2 id="source-title">{preview.title}</h2></div><button className="close-button" aria-label="关闭原文窗口" onClick={() => setPreview(null)}>×</button></div><div className="source-meta">{preview.year || "年份未标注"} · {kinds[preview.kind]} · {preview.fileName}{preview.sourceUrl && <a href={preview.sourceUrl} target="_blank" rel="noopener noreferrer">打开来源网址 ↗</a>}</div><div className="source-scroll">{preview.chunks.map(c => <article id={`source-${c.id}`} className={c.id === highlight ? "source-passage highlighted" : "source-passage"} key={c.id}><h3>{location(c)}</h3><p>{c.text}</p></article>)}</div></section></div>}
+    {preview && <div className="modal-backdrop"><section className="modal source-modal" role="dialog" aria-modal="true" aria-labelledby="source-title"><div className="modal-heading"><div><p className="eyebrow">ORIGINAL SOURCE</p><h2 id="source-title">{preview.title}</h2></div><button className="close-button" aria-label="关闭原文窗口" onClick={() => { sourceRequest.current++; setPreview(null); }}>×</button></div><div className="source-meta">{preview.year || "年份未标注"} · {kinds[preview.kind]} · {preview.fileName}{preview.sourceUrl && <a href={preview.sourceUrl} target="_blank" rel="noopener noreferrer">打开来源网址 ↗</a>}</div><div className="source-scroll">{preview.chunks.map(c => <article id={`source-${c.id}`} className={c.id === highlight ? "source-passage highlighted" : "source-passage"} key={c.id}><h3>{location(c)}</h3><p>{c.text}</p></article>)}</div></section></div>}
   </div>;
 }
