@@ -208,6 +208,20 @@ export function validateRevision(value: unknown): number {
   return integer(value, "编辑修订号", 0, Number.MAX_SAFE_INTEGER);
 }
 
+export function validateCreateRequest(value: unknown):
+  | { action: "competition"; input: CreateCompetition }
+  | { action: "event"; input: CreateEvent } {
+  const input = object(value, "新建请求", ["action", "input"]);
+  if (input.action === "competition") return { action: input.action, input: validateCreateCompetition(input.input) };
+  if (input.action === "event") return { action: input.action, input: validateCreateEvent(input.input) };
+  return fail("请选择新建赛事或赛道");
+}
+
+export function validatePublishRequest(value: unknown): { expectedRevision: number } {
+  const input = object(value, "发布请求", ["expectedRevision"]);
+  return { expectedRevision: validateRevision(input.expectedRevision) };
+}
+
 export type SourceMetadata = { id: string; title: string; competition: string; kind: DocumentKind; year: string; stage: string };
 
 // Only explicit metadata is used here; these guards do not infer rules from source prose.
