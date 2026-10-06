@@ -25,6 +25,8 @@ export type Answer = {
   retrievalMode: "hybrid" | "keyword"; citations: Citation[];
   warnings: string[]; elapsedMs: number; createdAt: string;
 };
+export type ChatSession = { id: string; title: string; documentIds: string[]; createdAt: string; updatedAt: string; answerCount: number };
+export type ChatDetail = { session: ChatSession; answers: Answer[] };
 export interface Provider {
   chatReady: boolean; embeddingReady: boolean; embeddingKey: string;
   embed(texts: string[]): Promise<number[][]>;
