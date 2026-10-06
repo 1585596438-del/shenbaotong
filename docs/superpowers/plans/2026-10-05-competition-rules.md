@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-05-competition-rules-design.md`，用户已确认。
 
-**执行状态：** 用户已审阅计划并选择子代理分任务执行。截至2026-10-06，Task 1～3 已完成双阶段审查；Task 4 代码与需求审查完成，67项相关回归通过，代码质量审查因代理使用额度限制尚未完成；Task 5～9 待实施。
+**执行状态：** 用户已审阅计划并选择子代理分任务执行。2026-10-06继续：Task 1～5已完成双阶段审查；Task 5保存为本地提交163d79a，主会话完整回归82/82、类型检查及生产构建通过。下一执行点为Task 6列表建档页面，Task 6～9待实施。
 
 ---
 
@@ -21,6 +21,7 @@
 - 原文、密钥、数据库、截图和真实验证输出继续留在被忽略目录；日志不输出环境变量或密钥。
 - Windows Git 写操作、Node 运行及受限网络操作按实际沙箱审批执行；需要权限不等于测试失败。
 - 本轮不实现 AI 提取、专业推荐、资格结论或清单；页面标签说明后续用途，不把规则发布显示成资格批准。
+- 2026-10-06用户授权：每完成一个阶段，在测试和审查通过后将该阶段成果推送到独立分支，创建GitHub拉取请求并合并到仓库当前默认分支。记录PR链接与合并结果；不直接推送默认分支，不绕过分支保护或失败检查。当前远端为1585596438-del/shenbaotong，默认分支为feat/rag-knowledge-base，执行时重新核对。
 - 先实施并验证软件，再经同样接口录入真实资料。测试使用临时数据库，不删除用户原文。
 
 ## 文件职责与接口契约
@@ -393,7 +394,7 @@ publicationIssues 在同一连接查询实时原文，调用 collectPublicationI
 
 **Files:** Modify src/server/store.ts、competitions/store.ts、tests/competitions.test.ts。
 
-- [ ] **Step 1：写删除后失效和发布前来源消失测试。** 使用临时文档发布v1，新建草稿后删除原文。断言current=null、v1=needs_review、关联片段及依据消失、草稿确认撤回；再发布失败而不是恢复旧版本。
+- [x] **Step 1：写删除后失效和发布前来源消失测试。** 使用临时文档发布v1，新建草稿后删除原文。断言current=null、v1=needs_review、关联片段及依据消失、草稿确认撤回；再发布失败而不是恢复旧版本。
 
 ```ts
 test("删除原文使发布版本失效，并阻止正在编辑的草稿发布", () => {
@@ -413,8 +414,8 @@ test("删除原文使发布版本失效，并阻止正在编辑的草稿发布",
 });
 ```
 
-- [ ] **Step 2：运行测试，预期发现删除仅影响现有问答而未影响规则。** `npx tsx --test tests/competitions.test.ts`。
-- [ ] **Step 3：扩展 deleteDocument 既有事务。** 在 DELETE documents 前调用 `this.competitions.invalidateDocument(id)`。该方法查询所有依据和所有body.sources引用该文档的版本，不能只检查有evidence的版本； published/archived改needs_review，draft对应字段改unreviewed并递增revision。未知字段保留unknown。删除原文后FK删除evidence，body.sources移除被删ID，event集合移除ID；维持任何规则发布/存储错误导致整个删除事务回滚。
+- [x] **Step 2：运行测试，预期发现删除仅影响现有问答而未影响规则。** `npx tsx --test tests/competitions.test.ts`。
+- [x] **Step 3：扩展 deleteDocument 既有事务。** 在 DELETE documents 前调用 `this.competitions.invalidateDocument(id)`。该方法查询所有依据和所有body.sources引用该文档的版本，不能只检查有evidence的版本； published/archived改needs_review，draft对应字段改unreviewed并递增revision。未知字段保留unknown。删除原文后FK删除evidence，body.sources移除被删ID，event集合移除ID；维持任何规则发布/存储错误导致整个删除事务回滚。
 
 ```ts
 // 放在 KnowledgeStore.deleteDocument 原有事务最前面，保留现有问答清理。
@@ -424,14 +425,14 @@ this.db.prepare("DELETE FROM documents WHERE id=?").run(id);
 
 规则值保留在needs_review历史版本中，但没有原文快照；返回详情时不将不存在的chunkId构造成有效引用。移除当前来源不自动选择旧archived版本。
 
-- [ ] **Step 4：运行新测试、tests/core.test.ts、tests/rag.test.ts。** 删除问答、并发生成引用失效等旧测试必须保持通过。
-- [ ] **Step 5：提交失效处理。** `git add src/server/store.ts src/server/competitions/store.ts tests/competitions.test.ts`；`git commit -m "fix: invalidate published rules when knowledge sources are deleted"`。
+- [x] **Step 4：运行新测试、tests/core.test.ts、tests/rag.test.ts。** 删除问答、并发生成引用失效等旧测试必须保持通过。
+- [x] **Step 5：提交失效处理。** `git add src/server/store.ts src/server/competitions/store.ts tests/competitions.test.ts`；`git commit -m "fix: invalidate published rules when knowledge sources are deleted"`。
 
 ## Task 5：本地写接口和可展示错误
 
-**Files:** Create competitions/http.ts、6个route.ts、tests/competition-routes.test.ts。
+**Files:** Create competitions/http.ts、5个route.ts（6个处理方法，根路径GET/POST共用文件）、tests/competition-routes.test.ts。
 
-- [ ] **Step 1：用真实 Request 调用route导出函数写错误码测试。** 测试外部Origin、404、revision409、65536字节以上JSON和正常保存；设置RAG_DATA_DIR为独立临时目录，并在finally恢复原值。不能用mock绕过JSON校验与数据库。
+- [x] **Step 1：用真实 Request 调用route导出函数写错误码测试。** 测试外部Origin、404、revision409、65536字节以上JSON和正常保存；设置RAG_DATA_DIR为独立临时目录，并在finally恢复原值。不能用mock绕过JSON校验与数据库。
 
 ```ts
 test("本地接口拒绝外站写入和不存在的赛道", async () => {
@@ -448,8 +449,8 @@ test("本地接口拒绝外站写入和不存在的赛道", async () => {
 });
 ```
 
-- [ ] **Step 2：运行 `npx tsx --test tests/competition-routes.test.ts`，预期接口尚未存在。**
-- [ ] **Step 3：实现JSON与错误封装及接口。** mutation先checkOrigin；用ReadableStream reader累计字节，不信任Content-Length，超过65536立即cancel并400，完整UTF-8文本JSON.parse后再validate。response body只输出用户可理解message，不打印SQL、堆栈或环境配置。统一竞争错误用CompetitionError.status。
+- [x] **Step 2：运行 `npx tsx --test tests/competition-routes.test.ts`，预期接口尚未存在。**
+- [x] **Step 3：实现JSON与错误封装及接口。** mutation先checkOrigin；用ReadableStream reader累计字节，不信任Content-Length，超过65536立即cancel并400，完整UTF-8文本JSON.parse后再validate。response body只输出用户可理解message，不打印SQL、堆栈或环境配置。统一竞争错误用CompetitionError.status。
 
 POST /api/competitions 请求为 `{action:"competition",input:CreateCompetition}` 或 `{action:"event",input:CreateEvent}`。GET返回 `{competitions,items}`，competitions通过listCompetitions()包含尚无赛道的母赛事，items通过list()返回赛道；便于新建母赛事后立即选择建赛道。其他接口响应分别 `{detail}`、`{version}`；draft创建请求无需正文，publish请求为 `{expectedRevision}`，PUT请求为SaveDraft。所有动态params沿用项目Promise写法。
 
@@ -469,8 +470,8 @@ export async function PUT(request: Request, context: Context) {
 
 readRuleJson和competitionErrorResponse放http.ts；validateSaveDraft放validation.ts，复用validateBody/validateEvidenceInputs并校验expectedRevision非负整数。这里示例PUT调用的名字即实现契约，publish/create也使用同一错误封装，不复用默认400掩盖404/409。
 
-- [ ] **Step 4：运行route与规则测试，执行 `npm run typecheck`。** 每个输入错误码与实际数据库状态符合预期。
-- [ ] **Step 5：提交接口。** `git add src/app/api/competitions src/server/competitions/http.ts src/server/competitions/validation.ts tests/competition-routes.test.ts`；`git commit -m "feat: expose local competition rule maintenance APIs"`。
+- [x] **Step 4：运行route与规则测试，执行 `npm run typecheck`。** 每个输入错误码与实际数据库状态符合预期。
+- [x] **Step 5：提交接口。** `git add src/app/api/competitions src/server/competitions/http.ts src/server/competitions/validation.ts tests/competition-routes.test.ts`；`git commit -m "feat: expose local competition rule maintenance APIs"`。
 
 ## Task 6：竞赛列表、新建与版本详情
 
