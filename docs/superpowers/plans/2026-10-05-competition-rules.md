@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-05-competition-rules-design.md`，用户已确认。
 
-**执行状态：** 用户已审阅计划并选择子代理分任务执行。2026-10-06继续：Task 1～5已完成双阶段审查；Task 5保存为本地提交163d79a，主会话完整回归82/82、类型检查及生产构建通过。Task 6已完成并保存为eab24db，83/83回归、类型检查、生产构建、实际页面验收和双阶段审查通过；Task 7已完成字段编辑、原文审核、冲突记录及显式发布；83/83回归、类型检查、生产构建、实际页面验收及双阶段复审通过。下一执行点为Task 8，Task 8～9待实施。
+**执行状态：** 用户已审阅计划并选择子代理分任务执行。2026-10-06继续：Task 1～5已完成双阶段审查；Task 5保存为本地提交163d79a，主会话完整回归82/82、类型检查及生产构建通过。Task 6已完成并保存为eab24db，83/83回归、类型检查、生产构建、实际页面验收和双阶段审查通过；Task 7已完成字段编辑、原文审核、冲突记录及显式发布；83/83回归、类型检查、生产构建、实际页面验收及双阶段复审通过。Task 8清单与幂等草稿录入已完成，90/90回归、类型检查、生产构建、真实资料副本验收及双阶段审查通过；正式知识库尚未录入。下一执行点为Task 9真实资料操作验收。
 
 ---
 
@@ -567,9 +567,9 @@ async function publish(saved: RuleVersion) {
 
 ## Task 8：首批三个赛道的幂等草稿录入
 
-**Files:** Create seed.ts、scripts/import-competition-rules.ts、docs/competition-rule-seeds-2026-10-05.json、tests/competition-seed.test.ts；Modify package.json。
+**Files:** Create seed.ts、scripts/import-competition-rules.ts、docs/competition-rule-seeds-2026-10-05.json、tests/competition-seed.test.ts；Modify package.json、src/server/competitions/store.ts（复用连接的事务入口）。
 
-- [ ] **Step 1：写稳定来源匹配、正文变化和不覆盖编辑测试。** 使用两份同URL不同正文的临时原文，录入要求URL+正文sha256唯一匹配。第一次创建unreviewed字段与未确认来源；第二次不新增；人工修改后第三次不能覆盖。零命中、多命中、锚点出现两次均跳过该赛道并报告失败，不误选第一个。
+- [x] **Step 1：写稳定来源匹配、正文变化和不覆盖编辑测试。** 使用两份同URL不同正文的临时原文，录入要求URL+正文sha256唯一匹配。第一次创建unreviewed字段与未确认来源；第二次不新增；人工修改后第三次不能覆盖。零命中、多命中、锚点出现两次均跳过该赛道并报告失败，不误选第一个。
 
 ```ts
 test("录入重复执行不覆盖维护者编辑", () => {
@@ -590,8 +590,8 @@ test("录入重复执行不覆盖维护者编辑", () => {
 });
 ```
 
-- [ ] **Step 2：运行 `npx tsx --test tests/competition-seed.test.ts`，预期尚无seed函数。**
-- [ ] **Step 3：定义清单并实现解析。** 清单结构为`{schemaVersion:1,entries:[{competition:CreateCompetition,event:Omit<CreateEvent,"competitionId">,sources:[{key,url,textSha256}],fields:[{path,field,evidence:[{sourceKey,anchor}]}]}]}`。source文档哈希用chunks按sequence恢复正文后计算，保留大小写和空白，不用易变化的文件路径或本机UUID。anchor原文必须在恢复正文中恰好一次出现；收集其字符区间重叠的所有chunks，因此跨分块的句子能关联完整依据。
+- [x] **Step 2：运行 `npx tsx --test tests/competition-seed.test.ts`，预期尚无seed函数。**
+- [x] **Step 3：定义清单并实现解析。** 清单结构为`{schemaVersion:1,entries:[{competition:CreateCompetition,event:Omit<CreateEvent,"competitionId">,sources:[{key,url,textSha256}],fields:[{path,field,evidence:[{sourceKey,anchor}]}]}]}`。source文档哈希用chunks按sequence恢复正文后计算，保留大小写和空白，不用易变化的文件路径或本机UUID。anchor原文必须在恢复正文中恰好一次出现；收集其字符区间重叠的所有chunks，因此跨分块的句子能关联完整依据。
 
 seed.ts 导出如下类型和函数；校验JSON清单时拒绝额外键并调用已有字段校验：
 
@@ -653,8 +653,8 @@ main().catch(error => {
 
 首批录入范围与事实检查：计算机设计大赛绑定参赛要求及软件分类；蓝桥杯绑定Python规则及省赛时间；中国软件杯绑定报名、延期及作品提交说明。分别核对同校及人数、单人/组别、教师名额计入总人数与A组条件。未取到学校年度认定、校内截止或具体赛题要求的字段为unknown。种子值来自原文人工核对，不根据母赛事名称推断。将每条rule的正文sha256与anchor填入实际JSON后才执行录入。
 
-- [ ] **Step 4：添加npm脚本并运行测试。** `rules:import`=`tsx scripts/import-competition-rules.ts`；`test`显式追加三个新测试文件。运行完整npm test与typecheck；真实资料录入前先测试空库结果：0创建、3个缺来源报告，不能崩溃或生成看似已发布记录。
-- [ ] **Step 5：提交草稿录入。** `git add src/server/competitions/seed.ts scripts/import-competition-rules.ts docs/competition-rule-seeds-2026-10-05.json tests/competition-seed.test.ts package.json`；`git commit -m "feat: seed three competition rule drafts with source verification"`。
+- [x] **Step 4：添加npm脚本并运行测试。** `rules:import`=`tsx scripts/import-competition-rules.ts`；`test`显式追加三个新测试文件。运行完整npm test与typecheck；真实资料录入前先测试空库结果：0创建、3个缺来源报告，不能崩溃或生成看似已发布记录。
+- [x] **Step 5：提交草稿录入。** `git add src/server/competitions/seed.ts scripts/import-competition-rules.ts docs/competition-rule-seeds-2026-10-05.json tests/competition-seed.test.ts package.json`；`git commit -m "feat: seed three competition rule drafts with source verification"`。
 
 ## Task 9：真实资料操作验收与交付
 
