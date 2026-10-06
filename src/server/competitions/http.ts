@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkOrigin } from "../http";
-import { CompetitionError } from "./types";
+import { CompetitionError, isCompetitionError } from "./types";
 
 const MAX_RULE_BYTES = 65536;
 
@@ -37,6 +37,6 @@ export async function readRuleJson(request: Request): Promise<unknown> {
 }
 
 export function competitionErrorResponse(error: unknown) {
-  if (error instanceof CompetitionError) return NextResponse.json({ error: error.message }, { status: error.status });
+  if (isCompetitionError(error)) return NextResponse.json({ error: error.message }, { status: error.status });
   return NextResponse.json({ error: "竞赛规则处理失败，请重试。" }, { status: 500 });
 }

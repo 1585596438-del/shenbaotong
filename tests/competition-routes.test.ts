@@ -154,6 +154,20 @@ test("竞赛维护接口使用真实请求及独立临时数据库", async t => 
       assert.equal(unexpected.status, 500);
       assert.doesNotMatch(JSON.stringify(await unexpected.json()), /SQLITE|SELECT|secret|stack/);
     });
+    await t.test("独立路由模块的领域错误保留状态，未标记的异常继续脱敏", async () => {
+      // Next bundles routes separately while the database store survives in globalThis.
+      const otherBundleError = new Error("另一规则模块的编辑冲突");
+      Object.assign(otherBundleError, { name: "CompetitionError", status: 409 });
+      Object.defineProperty(otherBundleError, Symbol.for("shenbaotong.competition-error"), { value: true });
+      const response = http.competitionErrorResponse(otherBundleError);
+      assert.equal(response.status, 409);
+      assert.equal((await response.json()).error, otherBundleError.message);
+      const unbranded = Object.assign(new Error("SQLITE private details"), { name: "CompetitionError", status: 409 });
+      assert.equal(http.competitionErrorResponse(unbranded).status, 500);
+      const invalidStatus = Object.assign(new Error("SQLITE private details"), { status: 500 });
+      Object.defineProperty(invalidStatus, Symbol.for("shenbaotong.competition-error"), { value: true });
+      assert.equal(http.competitionErrorResponse(invalidStatus).status, 500);
+    });
   } finally {
     // Route imports can initialize this global after it was cleared above.
     (globalThis as typeof globals).ragStore?.close();

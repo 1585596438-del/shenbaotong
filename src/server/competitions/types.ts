@@ -92,11 +92,19 @@ export type EventDetail = {
 };
 export type PublicationIssue = { fieldPath: string; message: string };
 
+const competitionErrorTag = Symbol.for("shenbaotong.competition-error");
 export class CompetitionError extends Error {
+  readonly [competitionErrorTag] = true;
   constructor(message: string, public status: 400 | 404 | 409 = 400) {
     super(message);
     this.name = "CompetitionError";
   }
+}
+
+// Route bundles can have distinct constructors while sharing the cached store.
+export function isCompetitionError(error: unknown): error is CompetitionError {
+  return error instanceof Error && Reflect.get(error, competitionErrorTag) === true
+    && [400, 404, 409].includes(Reflect.get(error, "status"));
 }
 
 export const FIELD_DEFINITIONS: Array<{ path: FixedFieldPath; kind: RuleKind; label: string }> = [
