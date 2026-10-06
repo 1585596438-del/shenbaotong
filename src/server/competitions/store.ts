@@ -104,6 +104,10 @@ export class CompetitionStore {
     });
   }
 
+  runInTransaction<T>(operation: () => T): T {
+    return this.execute(() => this.db.transaction(operation)());
+  }
+
   list(): CompetitionListItem[] {
     return this.execute(() => this.db.transaction(() => {
       const rows = this.db.prepare("SELECT id FROM competition_events ORDER BY createdAt DESC,id").all() as { id: string }[];

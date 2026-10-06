@@ -1,0 +1,1316 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "competition": {
+        "name": "中国大学生计算机设计大赛",
+        "aliases": [],
+        "catalogNumber": 25,
+        "catalogYear": 2024,
+        "officialUrl": "https://jsjds.blcu.edu.cn/"
+      },
+      "event": {
+        "editionLabel": "2026年第19届",
+        "yearStart": 2026,
+        "yearEnd": 2026,
+        "trackName": "软件应用与开发",
+        "stage": "校赛、省赛及国赛"
+      },
+      "sources": [
+        {
+          "key": "design",
+          "url": "https://jsjds.blcu.edu.cn/info/1078/1718.htm",
+          "textSha256": "8e9e8b9239718a9a4656df4fd63cf6bf20bcce8c9ea7e034ac40dd1d6f5659c4"
+        },
+        {
+          "key": "category",
+          "url": "https://jsjds.blcu.edu.cn/gsjs1/jnjsq.htm",
+          "textSha256": "6493b0131879e844688d648c714d0506c85240fe1ea6fad5d3cd27ef87a34aa9"
+        }
+      ],
+      "fields": [
+        {
+          "path": "content.summary",
+          "field": {
+            "kind": "text",
+            "value": "运行在计算机、网络或数据库系统上的软件，提供信息管理、信息服务、移动应用或算法设计等功能。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "提供信息管理、信息服务、移动应用、算法设计等功能或服务。"
+            }
+          ]
+        },
+        {
+          "path": "content.contestFormat",
+          "field": {
+            "kind": "text",
+            "value": "校级赛、省级赛、国家级赛三级；国赛现场答辩及作品演示。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "design",
+              "anchor": "大赛以校级赛、省级赛、国家级赛三级竞赛形式开展"
+            },
+            {
+              "sourceKey": "category",
+              "anchor": "每件作品答辩时，作者陈述（含作品演示）不超过10分钟。"
+            }
+          ]
+        },
+        {
+          "path": "content.entryPath",
+          "field": {
+            "kind": "text",
+            "value": "国赛只接受省级赛上推作品，取得入围资格后须完成国赛平台信息填报与核查。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "design",
+              "anchor": "国赛只接受省级赛上推的本科生的参赛作品。"
+            },
+            {
+              "sourceKey": "design",
+              "anchor": "还应通过国赛竞赛平台（2026.jsjds.com.cn）完成信息填报和核查工作"
+            }
+          ]
+        },
+        {
+          "path": "content.technicalRequirements",
+          "field": {
+            "kind": "texts",
+            "value": [
+              "Web类须提供互联网可访问的网站地址",
+              "作品须提供可安装运行文档或可访问网站地址"
+            ],
+            "state": "unreviewed",
+            "note": "第一项仅适用于Web应用与开发小类；专项赛具体要求未取得，需另行核对。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "参赛者必须提供能够在互联网上访问的网站地址（域名或IP地址均可）。"
+            },
+            {
+              "sourceKey": "category",
+              "anchor": "本类作品提交的作品文档需包含可安装运行的作品文档或可访问的网站地址。"
+            }
+          ]
+        },
+        {
+          "path": "student.levels",
+          "field": {
+            "kind": "texts",
+            "value": [
+              "本科"
+            ],
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "每个参赛队由同一所院校的2～9名全日制本科生组成，每队的指导教师不多于2名"
+            }
+          ]
+        },
+        {
+          "path": "student.fullTimeRequired",
+          "field": {
+            "kind": "boolean",
+            "value": true,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "每个参赛队由同一所院校的2～9名全日制本科生组成，每队的指导教师不多于2名"
+            }
+          ]
+        },
+        {
+          "path": "student.majorRestrictions",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "student.gradeRestrictions",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "team.studentMin",
+          "field": {
+            "kind": "integer",
+            "value": 2,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "每个参赛队由同一所院校的2～9名全日制本科生组成，每队的指导教师不多于2名"
+            }
+          ]
+        },
+        {
+          "path": "team.studentMax",
+          "field": {
+            "kind": "integer",
+            "value": 9,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "每个参赛队由同一所院校的2～9名全日制本科生组成，每队的指导教师不多于2名"
+            }
+          ]
+        },
+        {
+          "path": "team.teacherMin",
+          "field": {
+            "kind": "integer",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "team.teacherMax",
+          "field": {
+            "kind": "integer",
+            "value": 2,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "每个参赛队由同一所院校的2～9名全日制本科生组成，每队的指导教师不多于2名"
+            }
+          ]
+        },
+        {
+          "path": "team.totalTeamMax",
+          "field": {
+            "kind": "integer",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "team.teachersCountTowardTotal",
+          "field": {
+            "kind": "boolean",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "team.sameSchoolRequired",
+          "field": {
+            "kind": "boolean",
+            "value": true,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "每个参赛队由同一所院校的2～9名全日制本科生组成，每队的指导教师不多于2名"
+            }
+          ]
+        },
+        {
+          "path": "team.teacherRequirements",
+          "field": {
+            "kind": "text",
+            "value": "每队指导教师不多于2名；取得国赛资格后作者和指导教师姓名、排序不得变更。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "每个参赛队由同一所院校的2～9名全日制本科生组成，每队的指导教师不多于2名"
+            },
+            {
+              "sourceKey": "design",
+              "anchor": "在获得国赛参赛资格后，其作者与指导教师的姓名和排序，不得变更。"
+            }
+          ]
+        },
+        {
+          "path": "tags.majors",
+          "field": {
+            "kind": "texts",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "tags.skills",
+          "field": {
+            "kind": "texts",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "tags.interests",
+          "field": {
+            "kind": "texts",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "school.name",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "school.category",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "school.basisYear",
+          "field": {
+            "kind": "integer",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "deadlines.national-information",
+          "field": {
+            "kind": "date",
+            "value": {
+              "itemId": "national-information",
+              "name": "国赛信息填报与核查截止",
+              "stage": "获得省级赛上推资格后",
+              "precision": "date",
+              "value": "2026-05-30",
+              "timezone": "Asia/Shanghai"
+            },
+            "state": "unreviewed",
+            "note": "仅日期；不是校内报名截止。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "design",
+              "anchor": "截止日期均为2026年5月30日"
+            }
+          ]
+        },
+        {
+          "path": "deadlines.final-start",
+          "field": {
+            "kind": "date",
+            "value": {
+              "itemId": "final-start",
+              "name": "软件应用与开发决赛开始",
+              "stage": "国赛",
+              "precision": "date",
+              "value": "2026-08-11",
+              "timezone": "Asia/Shanghai"
+            },
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "决赛时间：2026年8月11日-8月15日"
+            }
+          ]
+        },
+        {
+          "path": "deadlines.final-end",
+          "field": {
+            "kind": "date",
+            "value": {
+              "itemId": "final-end",
+              "name": "软件应用与开发决赛结束",
+              "stage": "国赛",
+              "precision": "date",
+              "value": "2026-08-15",
+              "timezone": "Asia/Shanghai"
+            },
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "决赛时间：2026年8月11日-8月15日"
+            }
+          ]
+        },
+        {
+          "path": "materials.runnable-document",
+          "field": {
+            "kind": "material",
+            "value": {
+              "itemId": "runnable-document",
+              "name": "作品文档或可访问网站地址",
+              "stage": "作品提交",
+              "requirement": "required",
+              "condition": "须包含可安装运行的作品文档或可访问的网站地址。"
+            },
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "category",
+              "anchor": "本类作品提交的作品文档需包含可安装运行的作品文档或可访问的网站地址。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "competition": {
+        "name": "蓝桥杯全国软件和信息技术专业人才大赛",
+        "aliases": [
+          "蓝桥杯"
+        ],
+        "catalogNumber": 27,
+        "catalogYear": 2024,
+        "officialUrl": "https://dasai.lanqiao.cn/"
+      },
+      "event": {
+        "editionLabel": "2025—2026第17届",
+        "yearStart": 2025,
+        "yearEnd": 2026,
+        "trackName": "软件赛Python",
+        "stage": "省赛及全国总决赛"
+      },
+      "sources": [
+        {
+          "key": "python",
+          "url": "https://dasai.lanqiao.cn/notices/1829/",
+          "textSha256": "386d4ec358eba6c83f9e6a7d1f05e8cadcdf893baa864efee52c08da5101bd59"
+        },
+        {
+          "key": "province",
+          "url": "https://dasai.lanqiao.cn/notices/1829/",
+          "textSha256": "b3e2d45a5fb4b28d122202961558d2a25f52b84c29bb24c7198f99c2530a9803"
+        }
+      ],
+      "fields": [
+        {
+          "path": "content.summary",
+          "field": {
+            "kind": "text",
+            "value": "Python程序设计基础、计算机算法及数据结构；结果填空与编程大题。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "考查范围包括： Python   程序设计基础 、 计算机算法 及 数据结构 。"
+            },
+            {
+              "sourceKey": "python",
+              "anchor": "1. 结果填空题"
+            },
+            {
+              "sourceKey": "python",
+              "anchor": "2. 编程大题"
+            }
+          ]
+        },
+        {
+          "path": "content.contestFormat",
+          "field": {
+            "kind": "text",
+            "value": "个人独立作答，省赛和全国总决赛封闭限时，比赛时长4小时。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "选手以个人为单位，独立进行作答 。"
+            },
+            {
+              "sourceKey": "python",
+              "anchor": "省赛：由大赛组委会统一组织。比赛时长为   4   小时。"
+            }
+          ]
+        },
+        {
+          "path": "content.entryPath",
+          "field": {
+            "kind": "text",
+            "value": "每人只能参加一个组别；研究生、大学A/B/C组分别评奖；省赛一等奖取得全国总决赛资格。",
+            "state": "unreviewed",
+            "note": "研究生只能报研究生组；985/211本科生只能报研究生组或大学A组；其他本科可报大学B及以上；高职高专可自行选任意组别。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "每位选手只能申请参加其中一个组别的竞赛。"
+            },
+            {
+              "sourceKey": "python",
+              "anchor": "研究生只能报研究生组；重点本科院校"
+            },
+            {
+              "sourceKey": "python",
+              "anchor": "省赛一等奖选手获得全国总决"
+            }
+          ]
+        },
+        {
+          "path": "content.technicalRequirements",
+          "field": {
+            "kind": "texts",
+            "value": [
+              "Python 3.8.6及自带IDLE",
+              "仅Python自带库",
+              "指定网页提交答案或代码，标准输入输出"
+            ],
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "编译器： Python   3.8.6"
+            },
+            {
+              "sourceKey": "python",
+              "anchor": "Python   程序仅可以使用   Python   自带的库"
+            },
+            {
+              "sourceKey": "python",
+              "anchor": "选手应使用 比赛 指定的网页来提交代码"
+            }
+          ]
+        },
+        {
+          "path": "student.levels",
+          "field": {
+            "kind": "texts",
+            "value": [
+              "研究生",
+              "本科",
+              "高职高专"
+            ],
+            "state": "unreviewed",
+            "note": "各层次对应组别限制见参赛途径说明，报名时状态为准。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "具有正式全日制学籍并且符合相关科目报名要求的研究生 、 本科及高职高专学生"
+            }
+          ]
+        },
+        {
+          "path": "student.fullTimeRequired",
+          "field": {
+            "kind": "boolean",
+            "value": true,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "具有正式全日制学籍"
+            }
+          ]
+        },
+        {
+          "path": "student.majorRestrictions",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "student.gradeRestrictions",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "team.studentMin",
+          "field": {
+            "kind": "integer",
+            "value": 1,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "选手以个人为单位，独立进行作答 。"
+            }
+          ]
+        },
+        {
+          "path": "team.studentMax",
+          "field": {
+            "kind": "integer",
+            "value": 1,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "选手以个人为单位，独立进行作答 。"
+            }
+          ]
+        },
+        {
+          "path": "team.teacherMin",
+          "field": {
+            "kind": "integer",
+            "value": 1,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "每位选手配备一名指导教师"
+            }
+          ]
+        },
+        {
+          "path": "team.teacherMax",
+          "field": {
+            "kind": "integer",
+            "value": 1,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "每位选手配备一名指导教师"
+            }
+          ]
+        },
+        {
+          "path": "team.totalTeamMax",
+          "field": {
+            "kind": "integer",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "team.teachersCountTowardTotal",
+          "field": {
+            "kind": "boolean",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "team.sameSchoolRequired",
+          "field": {
+            "kind": "boolean",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "team.teacherRequirements",
+          "field": {
+            "kind": "text",
+            "value": "每位选手一名指导教师，同一教师可指导多位选手，比赛后原则上不能更改。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "python",
+              "anchor": "每位选手配备一名指导教师 ， 同一名指导教师可指导多位选手 。"
+            }
+          ]
+        },
+        {
+          "path": "tags.majors",
+          "field": {
+            "kind": "texts",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "tags.skills",
+          "field": {
+            "kind": "texts",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "tags.interests",
+          "field": {
+            "kind": "texts",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "school.name",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "school.category",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "school.basisYear",
+          "field": {
+            "kind": "integer",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "deadlines.province-start",
+          "field": {
+            "kind": "date",
+            "value": {
+              "itemId": "province-start",
+              "name": "Python省赛拟定开始",
+              "stage": "省赛",
+              "precision": "datetime",
+              "value": "2026-04-12T09:00:00+08:00",
+              "timezone": "Asia/Shanghai"
+            },
+            "state": "unreviewed",
+            "note": "拟定省赛时间，以准考证公布为准；不是报名截止，不外推第18届。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "province",
+              "anchor": "Python   程序设计 \n2026   年   4   月   12   日周日 \n9:00 — 13:00"
+            }
+          ]
+        },
+        {
+          "path": "deadlines.province-end",
+          "field": {
+            "kind": "date",
+            "value": {
+              "itemId": "province-end",
+              "name": "Python省赛拟定结束",
+              "stage": "省赛",
+              "precision": "datetime",
+              "value": "2026-04-12T13:00:00+08:00",
+              "timezone": "Asia/Shanghai"
+            },
+            "state": "unreviewed",
+            "note": "拟定省赛时间，以准考证公布为准；不是报名截止，不外推第18届。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "province",
+              "anchor": "Python   程序设计 \n2026   年   4   月   12   日周日 \n9:00 — 13:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "competition": {
+        "name": "中国软件杯大学生软件设计大赛",
+        "aliases": [
+          "中国软件杯"
+        ],
+        "catalogNumber": 38,
+        "catalogYear": 2024,
+        "officialUrl": "https://www.cnsoftbei.com/"
+      },
+      "event": {
+        "editionLabel": "2026年第15届",
+        "yearStart": 2026,
+        "yearEnd": 2026,
+        "trackName": "A组",
+        "stage": "报名与初赛作品提交"
+      },
+      "sources": [
+        {
+          "key": "registration",
+          "url": "https://www.cnsoftbei.com/content-74-1287-1.html",
+          "textSha256": "8d4479e1b51d95960aebaa71ca24fbd46c4e1d4688b73dc528ee42ce3744dc29"
+        },
+        {
+          "key": "extension",
+          "url": "https://www.cnsoftbei.com/content-1-1349-1.html",
+          "textSha256": "289c3261090343180e111f1e0b5974bcdd03b5e63d3023eed07b333f4b4cd589"
+        },
+        {
+          "key": "submission",
+          "url": "https://www.cnsoftbei.com/content-74-1350-1.html",
+          "textSha256": "189142a7f32be30c823050c5ee174e574381d23fad79e4dfb8de0408432fd409"
+        }
+      ],
+      "fields": [
+        {
+          "path": "content.summary",
+          "field": {
+            "kind": "text",
+            "value": "A组报名、组队及初赛作品在线提交；具体作品任务和额外提交要求以所选赛题页面为准。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "registration",
+              "anchor": "本科、研究生、高职均可报名A组赛题，B组赛题只能高职报名；"
+            },
+            {
+              "sourceKey": "submission",
+              "anchor": "【具体的提交内容以软件杯官网每道赛题页面里“初赛作品提交要求”为准】"
+            }
+          ]
+        },
+        {
+          "path": "content.contestFormat",
+          "field": {
+            "kind": "text",
+            "value": "初赛作品统一在线提交，队长在官网报名系统上传。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "extension",
+              "anchor": "初赛作品统一采用在线提交"
+            },
+            {
+              "sourceKey": "submission",
+              "anchor": "队长登陆“中国软件杯”大赛官网报名系统"
+            }
+          ]
+        },
+        {
+          "path": "content.entryPath",
+          "field": {
+            "kind": "text",
+            "value": "队长和队员分别注册，创建或加入队伍才算报名成功；选择A组赛题，作品与赛题一致。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "registration",
+              "anchor": "队长和队员需各自注册"
+            },
+            {
+              "sourceKey": "registration",
+              "anchor": "注册后要创建队伍（或加入队伍）才算报名成功；"
+            },
+            {
+              "sourceKey": "registration",
+              "anchor": "本科、研究生、高职均可报名A组赛题"
+            }
+          ]
+        },
+        {
+          "path": "content.technicalRequirements",
+          "field": {
+            "kind": "texts",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "student.levels",
+          "field": {
+            "kind": "texts",
+            "value": [
+              "本科",
+              "研究生",
+              "高职"
+            ],
+            "state": "unreviewed",
+            "note": "本草稿仅A组，不把A组层次要求用于B组。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "registration",
+              "anchor": "本科、研究生、高职均可报名A组赛题，B组赛题只能高职报名；"
+            }
+          ]
+        },
+        {
+          "path": "student.fullTimeRequired",
+          "field": {
+            "kind": "boolean",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "student.majorRestrictions",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "student.gradeRestrictions",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "team.studentMin",
+          "field": {
+            "kind": "integer",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "team.studentMax",
+          "field": {
+            "kind": "integer",
+            "value": 3,
+            "state": "unreviewed",
+            "note": "学生上限由队长1人及其他队员最多2人构成；指导教师/指导组占一个名额。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "registration",
+              "anchor": "每队成员不超过4名 (含4名，其中队长1名，指导老师/指导组 1名，其他队员不超过2名)"
+            }
+          ]
+        },
+        {
+          "path": "team.teacherMin",
+          "field": {
+            "kind": "integer",
+            "value": 1,
+            "state": "unreviewed",
+            "note": "这是指导教师或指导组占用的团队名额，不是指导组内实际教师人数上限。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "registration",
+              "anchor": "每队成员不超过4名 (含4名，其中队长1名，指导老师/指导组 1名，其他队员不超过2名)"
+            }
+          ]
+        },
+        {
+          "path": "team.teacherMax",
+          "field": {
+            "kind": "integer",
+            "value": 1,
+            "state": "unreviewed",
+            "note": "这是指导教师或指导组占用的团队名额，不是指导组内实际教师人数上限。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "registration",
+              "anchor": "每队成员不超过4名 (含4名，其中队长1名，指导老师/指导组 1名，其他队员不超过2名)"
+            }
+          ]
+        },
+        {
+          "path": "team.totalTeamMax",
+          "field": {
+            "kind": "integer",
+            "value": 4,
+            "state": "unreviewed",
+            "note": "学生上限由队长1人及其他队员最多2人构成；指导教师/指导组占一个名额。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "registration",
+              "anchor": "每队成员不超过4名 (含4名，其中队长1名，指导老师/指导组 1名，其他队员不超过2名)"
+            }
+          ]
+        },
+        {
+          "path": "team.teachersCountTowardTotal",
+          "field": {
+            "kind": "boolean",
+            "value": true,
+            "state": "unreviewed",
+            "note": "学生上限由队长1人及其他队员最多2人构成；指导教师/指导组占一个名额。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "registration",
+              "anchor": "每队成员不超过4名 (含4名，其中队长1名，指导老师/指导组 1名，其他队员不超过2名)"
+            }
+          ]
+        },
+        {
+          "path": "team.sameSchoolRequired",
+          "field": {
+            "kind": "boolean",
+            "value": false,
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "registration",
+              "anchor": "鼓励跨学科、跨专业、跨年级、跨院校组队。"
+            }
+          ]
+        },
+        {
+          "path": "team.teacherRequirements",
+          "field": {
+            "kind": "text",
+            "value": "指导教师为学生所在学校专职教师；多人指导填写学校指导组，指导组在团队中占一个名额。",
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "registration",
+              "anchor": "指导老师应为学生所在学校的专职教师担任。"
+            },
+            {
+              "sourceKey": "registration",
+              "anchor": "指导组在团队中占一个名额；"
+            }
+          ]
+        },
+        {
+          "path": "tags.majors",
+          "field": {
+            "kind": "texts",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "tags.skills",
+          "field": {
+            "kind": "texts",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "tags.interests",
+          "field": {
+            "kind": "texts",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "school.name",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "school.category",
+          "field": {
+            "kind": "text",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "school.basisYear",
+          "field": {
+            "kind": "integer",
+            "value": null,
+            "state": "unknown",
+            "note": ""
+          },
+          "evidence": []
+        },
+        {
+          "path": "deadlines.registration-close",
+          "field": {
+            "kind": "date",
+            "value": {
+              "itemId": "registration-close",
+              "name": "延期后报名截止",
+              "stage": "报名",
+              "precision": "datetime",
+              "value": "2026-07-20T15:00:00+08:00",
+              "timezone": "Asia/Shanghai"
+            },
+            "state": "unreviewed",
+            "note": "依据2026-06-18延期通知；不是原始截止日期。"
+          },
+          "evidence": [
+            {
+              "sourceKey": "extension",
+              "anchor": "报名系统将延迟至 2026年7月20日（周一）15:00关闭"
+            }
+          ]
+        },
+        {
+          "path": "deadlines.submission-open",
+          "field": {
+            "kind": "date",
+            "value": {
+              "itemId": "submission-open",
+              "name": "初赛作品提交通道开放",
+              "stage": "初赛",
+              "precision": "datetime",
+              "value": "2026-06-22T15:00:00+08:00",
+              "timezone": "Asia/Shanghai"
+            },
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "extension",
+              "anchor": "作品提交通道开通时间：2026年6月22日(周一)15:00"
+            }
+          ]
+        },
+        {
+          "path": "deadlines.submission-close",
+          "field": {
+            "kind": "date",
+            "value": {
+              "itemId": "submission-close",
+              "name": "初赛作品提交截止",
+              "stage": "初赛",
+              "precision": "datetime",
+              "value": "2026-07-20T15:00:00+08:00",
+              "timezone": "Asia/Shanghai"
+            },
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "extension",
+              "anchor": "作品提交截止时间：2026年7月20日(周一)15:00"
+            },
+            {
+              "sourceKey": "submission",
+              "anchor": "作品提交截止时间：2026年7月20日（周一）15:00"
+            }
+          ]
+        },
+        {
+          "path": "materials.source-code",
+          "field": {
+            "kind": "material",
+            "value": {
+              "itemId": "source-code",
+              "name": "源代码",
+              "stage": "初赛作品提交",
+              "requirement": "required",
+              "condition": "具体提交内容以所选赛题的初赛作品提交要求为准；初赛无需纸质材料。"
+            },
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "submission",
+              "anchor": "提交内容：源代码、可执行文件、相关文档"
+            }
+          ]
+        },
+        {
+          "path": "materials.executable",
+          "field": {
+            "kind": "material",
+            "value": {
+              "itemId": "executable",
+              "name": "可执行文件",
+              "stage": "初赛作品提交",
+              "requirement": "required",
+              "condition": "具体提交内容以所选赛题的初赛作品提交要求为准；初赛无需纸质材料。"
+            },
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "submission",
+              "anchor": "提交内容：源代码、可执行文件、相关文档"
+            }
+          ]
+        },
+        {
+          "path": "materials.documents",
+          "field": {
+            "kind": "material",
+            "value": {
+              "itemId": "documents",
+              "name": "相关文档",
+              "stage": "初赛作品提交",
+              "requirement": "required",
+              "condition": "具体提交内容以所选赛题的初赛作品提交要求为准；初赛无需纸质材料。"
+            },
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "submission",
+              "anchor": "提交内容：源代码、可执行文件、相关文档"
+            }
+          ]
+        },
+        {
+          "path": "materials.demo-video",
+          "field": {
+            "kind": "material",
+            "value": {
+              "itemId": "demo-video",
+              "name": "演示视频",
+              "stage": "初赛作品提交",
+              "requirement": "required",
+              "condition": "格式不限，尽量控制在7分钟以内；具体要求以赛题页面为准。"
+            },
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "submission",
+              "anchor": "演示视频（格式不限，时间尽量控制在7分钟以内）"
+            }
+          ]
+        },
+        {
+          "path": "materials.registration-student-card",
+          "field": {
+            "kind": "material",
+            "value": {
+              "itemId": "registration-student-card",
+              "name": "电子报名表和学生证",
+              "stage": "初赛作品提交",
+              "requirement": "required",
+              "condition": "具体提交内容以所选赛题的初赛作品提交要求为准；初赛无需纸质材料。"
+            },
+            "state": "unreviewed",
+            "note": ""
+          },
+          "evidence": [
+            {
+              "sourceKey": "submission",
+              "anchor": "电子报名表和学生证"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
