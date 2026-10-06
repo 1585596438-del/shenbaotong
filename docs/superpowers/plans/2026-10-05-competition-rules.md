@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-05-competition-rules-design.md`，用户已确认。
 
-**执行状态：** 用户已审阅计划并选择子代理分任务执行。2026-10-06继续：Task 1～5已完成双阶段审查；Task 5保存为本地提交163d79a，主会话完整回归82/82、类型检查及生产构建通过。Task 6已完成并保存为eab24db，83/83回归、类型检查、生产构建、实际页面验收和双阶段审查通过；下一执行点为Task 7编辑确认页面，Task 7～9待实施。
+**执行状态：** 用户已审阅计划并选择子代理分任务执行。2026-10-06继续：Task 1～5已完成双阶段审查；Task 5保存为本地提交163d79a，主会话完整回归82/82、类型检查及生产构建通过。Task 6已完成并保存为eab24db，83/83回归、类型检查、生产构建、实际页面验收和双阶段审查通过；Task 7已完成字段编辑、原文审核、冲突记录及显式发布；83/83回归、类型检查、生产构建、实际页面验收及双阶段复审通过。下一执行点为Task 8，Task 8～9待实施。
 
 ---
 
@@ -515,9 +515,9 @@ ruleApi统一检查HTTP错误，放组件目录的`competition-api.ts`，签名�
 
 ## Task 7：规则字段编辑、原文依据与确认发布
 
-**Files:** Create rule-editor.tsx、rule-field.tsx、rule-source-picker.tsx；Modify competition-library.tsx、globals.css。
+**Files:** Create rule-editor.tsx、rule-field.tsx、rule-source-picker.tsx；Modify competition-library.tsx、workspace.tsx、globals.css。
 
-- [ ] **Step 1：实现受控字段表单。** 编辑器Props为`{detail:EventDetail,version:RuleVersion,documents:KnowledgeDocument[],onSaved:()=>Promise<void>}`。本地保留body、evidence与dirty状态；字段按content/student/team/tags/school分组。unknown开关将value=null、撤销确认；text输入、texts按逗号分隔、integer输入保留空值、boolean用“是/否/未知”而非默认false；修改value/kind/note立即改unreviewed。日期和材料列表用稳定UUID itemId，专用表单添加/删除且同步移除依据。
+- [x] **Step 1：实现受控字段表单。** 编辑器Props为`{detail:EventDetail,version:RuleVersion,documents:KnowledgeDocument[],onSaved:()=>Promise<void>}`。本地保留body、evidence与dirty状态；字段按content/student/team/tags/school分组。unknown开关将value=null、撤销确认；text输入、texts按逗号分隔、integer输入保留空值、boolean用“是/否/未知”而非默认false；修改value/kind/note立即改unreviewed。日期和材料列表用稳定UUID itemId，专用表单添加/删除且同步移除依据。
 
 ```ts
 function updateField(path: FieldPath, next: RuleField) {
@@ -538,8 +538,8 @@ function confirmField(path: FieldPath) {
 
 有值的官方字段必须有依据才能点击确认；tags需要维护者说明。更换或删除依据后字段退回unreviewed，不沿用旧确认。去掉适用文档时移除对应evidence并撤销相关确认；适用说明变更也撤销source.confirmed。空数组不表示“不限”，清空后回unknown。
 
-- [ ] **Step 2：实现来源选择器和片段侧栏。** 来源从documents多选；逐份GET `/api/documents/[id]`取得chunks，展示标题、年份、阶段、页码/段落及sourceUrl。绑定/解除片段针对当前fieldPath。source适用说明和“已核对届次/赛道”复选单独呈现；来源年份冲突即时提示，服务端最终拒绝。原文查看请求序号或AbortController避免快速切换显示前一个文档。不存在来源显示需补资料，不伪造片段。
-- [ ] **Step 3：实现保存、未保存提示和发布摘要。** PUT带当前editRevision，成功更新version并清dirty；409保留本地编辑，提示重新载入及手工核对，不静默覆盖。发布前必须先保存并使用新revision；弹出所有confirmed项、unknown项和适用来源摘要，再显式POST publish。正在保存/发布时禁用重复操作，失败保留草稿。切换赛道或离开dirty表单先提示是否放弃修改。
+- [x] **Step 2：实现来源选择器和片段侧栏。** 来源从documents多选；逐份GET `/api/documents/[id]`取得chunks，展示标题、年份、阶段、页码/段落及sourceUrl。绑定/解除片段针对当前fieldPath。source适用说明和“已核对届次/赛道”复选单独呈现；来源年份冲突即时提示，服务端最终拒绝。原文查看请求序号或AbortController避免快速切换显示前一个文档。不存在来源显示需补资料，不伪造片段。
+- [x] **Step 3：实现保存、未保存提示和发布摘要。** PUT带当前editRevision，成功更新version并清dirty；409保留本地编辑，提示重新载入及手工核对，不静默覆盖。发布前必须先保存并使用新revision；弹出所有confirmed项、unknown项和适用来源摘要，再显式POST publish。正在保存/发布时禁用重复操作，失败保留草稿。切换赛道或离开dirty表单先提示是否放弃修改。
 
 ```ts
 async function save(): Promise<RuleVersion> {
@@ -562,8 +562,8 @@ async function publish(saved: RuleVersion) {
 
 发布摘要确认按钮才调用publish；不在打开弹窗时发送请求。发布后的编辑入口调用ensureDraft，不能将原published ID继续PUT。
 
-- [ ] **Step 4：完成浏览器验证。** 创建测试赛道，填写studentMax，先验证无证据不能确认/发布，再绑定原文、核对并发布；创建第二版草稿并改值，第一版详情保持原值。双窗口验证409，刷新和手机布局验证数据及滚动。
-- [ ] **Step 5：运行typecheck/build，提交审核页面。** `git add src/components/rule-editor.tsx src/components/rule-field.tsx src/components/rule-source-picker.tsx src/components/competition-library.tsx src/app/globals.css`；`git commit -m "feat: review competition rules beside their original evidence"`。
+- [x] **Step 4：完成浏览器验证。** 创建测试赛道，填写studentMax，先验证无证据不能确认/发布，再绑定原文、核对并发布；创建第二版草稿并改值，第一版详情保持原值。双窗口验证409，刷新和手机布局验证数据及滚动。
+- [x] **Step 5：运行typecheck/build，提交审核页面。** `git add src/components/rule-editor.tsx src/components/rule-field.tsx src/components/rule-source-picker.tsx src/components/competition-library.tsx src/app/globals.css`；`git commit -m "feat: review competition rules beside their original evidence"`。
 
 ## Task 8：首批三个赛道的幂等草稿录入
 
