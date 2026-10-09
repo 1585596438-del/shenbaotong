@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-09",
+  "selection": "人工核对正文对应的最新已发布届次；不表示报名仍开放。只导入可读正文，未解析附件不补写规则。",
+  "entries": [
+    {
+      "catalogId": 3,
+      "competition": "“挑战杯”中国大学生创业计划大赛",
+      "title": "2026第十五届“挑战杯”建设银行中国大学生创业计划竞赛举办通知",
+      "year": "2026",
+      "kind": "notice",
+      "stage": "全国赛举办通知",
+      "captureFile": "data/sources/2026-10-09/latest/3-ae3693b908e90e96.json",
+      "sourceUrl": "https://www.tiaozhanbei.net/article/15842/",
+      "textSha256": "658b1a91dbce7720d0de438e94ffe12cfbb955ee1b06e5fa88f56987b259f4ac",
+      "yearAnchor": "2026年6月1日"
+    },
+    {
+      "catalogId": 5,
+      "competition": "全国大学生数学建模竞赛",
+      "title": "全国大学生数学建模竞赛人工智能工具使用规定（2026年试行）",
+      "year": "2026",
+      "kind": "rule",
+      "stage": "全国赛AI工具使用规定",
+      "captureFile": "data/sources/2026-10-09/latest/5-202002670c55a30a.json",
+      "sourceUrl": "https://www.mcm.edu.cn/html_cn/node/fef94648f2836ab6cc81586f4c38512b.html",
+      "textSha256": "e16b746b6a9667031ac9681d983c9dcafb4ea247f0d7f3e4af0f25686ba12374",
+      "yearAnchor": "本规定自2026年9月1日起试行"
+    },
+    {
+      "catalogId": 18,
+      "competition": "全国大学生化工设计竞赛",
+      "title": "2026、2027年全国大学生化工设计竞赛承办学校通知",
+      "year": "2026—2027",
+      "kind": "notice",
+      "stage": "总决赛及赛区承办安排",
+      "captureFile": "data/sources/2026-10-09/latest/18-a309b154c0bbc54f.json",
+      "sourceUrl": "https://iche.zju.edu.cn/a/ssdt/1642.html",
+      "textSha256": "2b75f0715934e4a434f248db7f226cd4e4740728457fdaa7a2f85831ef27b7f3",
+      "yearAnchor": "2027年第二十一届全国总决赛"
+    },
+    {
+      "catalogId": 22,
+      "competition": "全国三维数字化创新设计大赛",
+      "title": "2026第19届全国3D大赛数字化设计与制造华中赛区选拔通知",
+      "year": "2026",
+      "kind": "notice",
+      "stage": "华中赛区选拔（部分图表未解析）",
+      "captureFile": "data/sources/2026-10-09/latest/22-1164481db14e6893.json",
+      "sourceUrl": "https://3dds.3ddl.net/index.php?ctl=Informationlist&met=newsdetails&id=743",
+      "textSha256": "6773a5e62e2878344992c9df361d044748d25953bf1054bd6b33887f4da6a0df",
+      "yearAnchor": "2026第19届全国三维数字化创新设计大赛"
+    },
+    {
+      "catalogId": 22,
+      "competition": "全国三维数字化创新设计大赛",
+      "title": "2026第19届全国3D大赛数字化设计与制造赣闽皖赛区选拔通知",
+      "year": "2026",
+      "kind": "notice",
+      "stage": "赣闽皖赛区选拔（部分图表未解析）",
+      "captureFile": "data/sources/2026-10-09/latest/22-15449d491139ff5a.json",
+      "sourceUrl": "https://3dds.3ddl.net/index.php?ctl=Informationlist&met=newsdetails&id=744",
+      "textSha256": "0b6e83af7a225f35ee7053c9a1e873afadece93a2d0f427408c3d0252a800b06",
+      "yearAnchor": "2026第19届全国三维数字化创新设计大赛"
+    },
+    {
+      "catalogId": 38,
+      "competition": "“中国软件杯”大学生软件设计大赛",
+      "title": "2026第十五届“中国软件杯”全国总决赛通知",
+      "year": "2026",
+      "kind": "notice",
+      "stage": "全国总决赛",
+      "captureFile": "data/sources/2026-10-09/latest/38-bff01f2e24c49198.json",
+      "sourceUrl": "https://www.cnsoftbei.com/content-1-1357-1.html",
+      "textSha256": "94ccca652ffca7f119f650416ddb710991875f6611cef7bce3b09973612871f8",
+      "yearAnchor": "2026"
+    },
+    {
+      "catalogId": 55,
+      "competition": "“工行杯”全国大学生金融科技创新大赛",
+      "title": "2026第17届“工行杯”全国大学生金融科技创新大赛规则与赛程",
+      "year": "2026",
+      "kind": "rule",
+      "stage": "全国赛规则与赛程",
+      "captureFile": "data/sources/2026-10-09/latest/55-85359b7d2217e7f0.json",
+      "sourceUrl": "https://www.gonghangbei.com/index/Lists/index.html?id=1",
+      "textSha256": "3fe39d639aba2d75156448781413396a8d0e99e9e14d3aea401d7cab76d0ea8b",
+      "yearAnchor": "大赛启动‌:2026年5月"
+    },
+    {
+      "catalogId": 58,
+      "competition": "百度之星·程序设计大赛",
+      "title": "2026第22届百度之星程序设计大赛举办通知",
+      "year": "2026",
+      "kind": "notice",
+      "stage": "举办通知（未含详细规则）",
+      "captureFile": "data/sources/2026-10-09/latest/58-91f1f8a163df9eac.json",
+      "sourceUrl": "https://star.baidu.com/#/news-info?tab=3&id=65F71D08632B4DDBBFDAC86926D02C75",
+      "textSha256": "bc28c99dfe9440e2928d0f086f04c53106a04c9dc6dc11f0e3aef26656a31871",
+      "yearAnchor": "2026年第22届百度之星程序设计大赛通知"
+    },
+    {
+      "catalogId": 66,
+      "competition": "全国大学生信息安全与对抗技术竞赛",
+      "title": "2026第23届信息安全与对抗技术竞赛密码安全赛通知",
+      "year": "2026",
+      "kind": "notice",
+      "stage": "密码安全赛",
+      "captureFile": "data/sources/2026-10-09/latest/66-a09e798c5e23b2d5.json",
+      "sourceUrl": "https://www.isclab.org.cn/2026/09/08/2026%e5%b9%b4%e7%ac%ac23%e5%b1%8a%e4%bf%a1%e6%81%af%e5%ae%89%e5%85%a8%e4%b8%8e%e5%af%b9%e6%8a%97%e6%8a%80%e6%9c%af%e7%ab%9e%e8%b5%9b%e9%80%9a%e7%9f%a5-%e5%af%86%e7%a0%81%e5%ae%89%e5%85%a8/",
+      "textSha256": "299cd2851b85cfebec050a90ecbd4ecefd95a572fcf1770ea90fa0b42449b38d",
+      "yearAnchor": "报名时间：截至2026年10月23日"
+    },
+    {
+      "catalogId": 66,
+      "competition": "全国大学生信息安全与对抗技术竞赛",
+      "title": "2026第23届信息安全与对抗技术竞赛线上挑战赛通知（更新版）",
+      "year": "2026",
+      "kind": "notice",
+      "stage": "线上挑战赛通知（附件未解析）",
+      "captureFile": "data/sources/2026-10-09/latest/66-db11bff9c9d7fc3c.json",
+      "sourceUrl": "https://www.isclab.org.cn/2026/04/21/2026%e5%b9%b4%e7%ac%ac23%e5%b1%8a%e4%bf%a1%e6%81%af%e5%ae%89%e5%85%a8%e4%b8%8e%e5%af%b9%e6%8a%97%e6%8a%80%e6%9c%af%e7%ab%9e%e8%b5%9b%e9%80%9a%e7%9f%a5%e3%80%90%e6%9b%b4%e6%96%b0%e7%89%88%e3%80%91/",
+      "textSha256": "08e9e591b160e7738caa7832ac40988a77466b3395eec4c0cb681bbf351a90ab",
+      "yearAnchor": "ISCC2026试点区域赛模式"
+    },
+    {
+      "catalogId": 66,
+      "competition": "全国大学生信息安全与对抗技术竞赛",
+      "title": "2026第23届信息安全与对抗技术竞赛智能安全赛赛项通知",
+      "year": "2026",
+      "kind": "notice",
+      "stage": "智能安全赛赛项通知（附件未解析）",
+      "captureFile": "data/sources/2026-10-09/latest/66-5cc16c7f13dac090.json",
+      "sourceUrl": "https://www.isclab.org.cn/2026/09/10/2026%e5%b9%b4%e7%ac%ac23%e5%b1%8a%e4%bf%a1%e6%81%af%e5%ae%89%e5%85%a8%e4%b8%8e%e5%af%b9%e6%8a%97%e6%8a%80%e6%9c%af%e7%ab%9e%e8%b5%9b-%e6%99%ba%e8%83%bd%e5%ae%89%e5%85%a8%e8%b5%9b/",
+      "textSha256": "9c5dc26b3eac96e83d158be3ae2fec7a08ffa01c78f9ac6eb6c597abe4f2d46e",
+      "yearAnchor": "2026年第23届信息安全与对抗技术竞赛"
+    },
+    {
+      "catalogId": 73,
+      "competition": "全国企业竞争模拟大赛",
+      "title": "2026年全国企业竞争模拟大赛通知与规程",
+      "year": "2026",
+      "kind": "rule",
+      "stage": "全国赛通知与规程",
+      "captureFile": "data/sources/2026-10-09/latest/73-30fcd06234628b46.json",
+      "sourceUrl": "https://www.ibizsim.cn/main/news/275",
+      "textSha256": "427e230613ff587fc92e7c4392d5d8709d123bf900785b387ad8badeb5ed87bb",
+      "yearAnchor": "赛事名称：2026年全国企业竞争模拟大赛"
+    },
+    {
+      "catalogId": 77,
+      "competition": "国际大学生智能农业装备创新大赛",
+      "title": "2026—2027第十二届国际大学生智能农业装备创新大赛举办通知",
+      "year": "2026—2027",
+      "kind": "notice",
+      "stage": "第十二届：2026报名、2027决赛",
+      "captureFile": "data/sources/2026-10-09/latest/77-3c4c22ee495b9236.json",
+      "sourceUrl": "https://uiaec.ujs.edu.cn/news_show.php?id=234",
+      "textSha256": "077d61b98b1a83bb541fefff4ef91965b56bf59628eb5604cbb52ceab1a6f291",
+      "yearAnchor": "复赛选拔（2027年1月1日～2027年3月5日）"
+    }
+  ]
+}

@@ -12,6 +12,18 @@ async function setup() {
   return { store, first, close() { store.close(); rmSync(root, { recursive: true, force: true }); } };
 }
 
+test("完整赛事名不能挤掉正文中的团队人数条款", async () => {
+  const { answerQuestion } = await import("../src/server/rag");
+  const env = await setup();
+  try {
+    const name = "“工行杯”全国大学生金融科技创新大赛";
+    const doc = env.store.importDocument({ title: `2026${name}规则`, sourceUrl: "https://example.edu/2026", kind: "rule", year: "2026", stage: "全国赛", competition: name, fileName: "rule.txt", pages: [{ page: null, text: Array.from({length: 12}, (_, i) => `${name}介绍${i}：创新金融科技服务。`).join("\n\n") + "\n\n参赛作品可由个人或团队完成，团队总人数不超过3人。" }] }).document;
+    const answer = await answerQuestion({ question: `2026年${name}团队最多多少人？` }, env.store, null);
+    assert.ok(answer.citations.some(c => c.documentId === doc.id && c.text.includes("团队总人数不超过3人")));
+    assert.ok(answer.citations.every(c => c.documentId === doc.id));
+  } finally { env.close(); }
+});
+
 test("口语问题锁定指定赛事，今年解析为当前年度，不混用软件杯和历史目录", async () => {
   const { planRetrieval } = await import("../src/server/query");
   const env = await setup();

@@ -98,7 +98,15 @@ export async function answerQuestion(input: { question: string; documentIds?: st
   ).map(d => d.id) : []);
   const eligibleScope = scope.filter(c => !superseded.has(c.documentId));
   if (superseded.size) warnings.push("本次日程查询使用同届调整通知，未使用已标记被替代的原通知或原手册日程。其他资格要求请另行查询原通知。");
-  const chunks = expandEvidence(rankChunks(plan.retrievalQuestion, eligibleScope, queryVector, provider?.embeddingKey), eligibleScope);
+  const seeds = rankChunks(plan.retrievalQuestion, eligibleScope, queryVector, provider?.embeddingKey);
+  const focused = plan.focusQuestion ? rankChunks(plan.focusQuestion, eligibleScope) : [];
+  const seen = new Set<string>();
+  const selected = [...focused, ...seeds].filter(chunk => {
+    if (seen.has(chunk.id)) return false;
+    seen.add(chunk.id);
+    return true;
+  });
+  const chunks = expandEvidence(selected, eligibleScope);
   const result: Answer = {
     id: randomUUID(), question, retrievalQuestion: plan.retrievalQuestion, answer: "当前所选文档中未找到该信息。请补充对应通知或尝试使用赛事名称、条件等关键词。",
     mode: "no_evidence", retrievalMode: queryVector ? "hybrid" : "keyword", citations: [], warnings,
