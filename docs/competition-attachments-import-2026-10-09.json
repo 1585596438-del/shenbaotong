@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-09",
+  "entries": [
+    {
+      "catalogId": 66,
+      "competition": "全国大学生信息安全与对抗技术竞赛",
+      "title": "2026第23届ISCC河南区域赛通知",
+      "year": "2026",
+      "kind": "notice",
+      "stage": "线上挑战赛河南区域赛",
+      "sourceUrl": "https://www.isclab.org.cn/wp-content/uploads/2026/04/2026042314351678.pdf",
+      "captureFile": "data/sources/2026-10-09/attachments/2026042314351678.json",
+      "textSha256": "d5d2fad7f44bed45390bedd4e13bef5ff20457d8c4b1f76c6a739d23438b89f1",
+      "yearAnchor": "2026年第23届信息安全与对抗技术竞赛"
+    },
+    {
+      "catalogId": 66,
+      "competition": "全国大学生信息安全与对抗技术竞赛",
+      "title": "2026第23届ISCC上海区域赛通知",
+      "year": "2026",
+      "kind": "notice",
+      "stage": "线上挑战赛上海区域赛",
+      "sourceUrl": "https://www.isclab.org.cn/wp-content/uploads/2026/04/2026042408362211.pdf",
+      "captureFile": "data/sources/2026-10-09/attachments/2026042408362211.json",
+      "textSha256": "aab9dc68fcd6d6477191583f7347a11b9460ce6b808bb2724eb7792b69410b3c",
+      "yearAnchor": "2026年第23届信息安全与对抗技术竞赛"
+    },
+    {
+      "catalogId": 66,
+      "competition": "全国大学生信息安全与对抗技术竞赛",
+      "title": "2026第23届ISCC综合区域赛细则",
+      "year": "2026",
+      "kind": "rule",
+      "stage": "线上挑战赛综合区域赛细则",
+      "sourceUrl": "https://www.isclab.org.cn/wp-content/uploads/2026/04/2026042314403182.pdf",
+      "captureFile": "data/sources/2026-10-09/attachments/2026042314403182.json",
+      "textSha256": "15fcadb9606489a0b2f1501070134615ab7491e60733dca6870362332b3053bd",
+      "yearAnchor": "2026年第23届信息安全与对抗技术竞赛"
+    }
+  ]
+}

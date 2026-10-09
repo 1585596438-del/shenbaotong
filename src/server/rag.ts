@@ -88,24 +88,29 @@ export async function answerQuestion(input: { question: string; documentIds?: st
   let queryVector: number[] | undefined;
   const indexed = provider?.embeddingReady && scope.some(c => c.embedding && c.embeddingKey === provider.embeddingKey);
   if (indexed && provider) {
-    try { queryVector = (await provider.embed([plan.retrievalQuestion]))[0]; }
+    try { queryVector = provider.embedQuery ? await provider.embedQuery(plan.retrievalQuestion) : (await provider.embed([plan.retrievalQuestion]))[0]; }
     catch { warnings.push("嵌入服务暂不可用，本次使用关键词检索。"); }
   }
   // 仅对明确标记有同届替代通知的日程问题排除原日程；资格问题继续使用原通知。
-  const adjusted = plan.documents.filter(d => /调整通知.*替代/.test(d.stage));
-  const superseded = new Set(/时间|日期|截止|延长|延期|赛程/.test(plan.retrievalQuestion) ? plan.documents.filter(d =>
+  const scheduleQuery = /时间|日期|截止|延长|延期|赛程|何时|什么时候|哪(?:一)?天|几点/.test(question);
+  const subjects = ["报名", "初赛", "提交"].filter(subject => plan.retrievalQuestion.includes(subject));
+  const adjusted = plan.documents.filter(d => !/原始通知|原手册/.test(d.stage) &&
+    (/调整通知.*替代/.test(d.stage) || (scheduleQuery && subjects.length && /调整|延期/.test(d.title + d.stage) && subjects.some(subject => (d.title + d.stage).includes(subject)))));
+  const superseded = new Set(scheduleQuery && subjects.length ? plan.documents.filter(d =>
     /原始通知|原手册/.test(d.stage) && adjusted.some(update => update.competition === d.competition && update.year === d.year)
   ).map(d => d.id) : []);
   const eligibleScope = scope.filter(c => !superseded.has(c.documentId));
   if (superseded.size) warnings.push("本次日程查询使用同届调整通知，未使用已标记被替代的原通知或原手册日程。其他资格要求请另行查询原通知。");
-  const seeds = rankChunks(plan.retrievalQuestion, eligibleScope, queryVector, provider?.embeddingKey);
+  const seeds = rankChunks(plan.retrievalQuestion, eligibleScope, queryVector, provider?.embeddingKey, provider?.vectorThreshold);
+  // 明确的对应事项调整通知优先，不能被许多短标题片段挤出上下文。
+  const updates = scheduleQuery ? rankChunks(plan.retrievalQuestion, eligibleScope.filter(c => adjusted.some(d => d.id === c.documentId)), queryVector, provider?.embeddingKey, provider?.vectorThreshold) : [];
   const focused = plan.focusQuestion ? rankChunks(plan.focusQuestion, eligibleScope) : [];
   const seen = new Set<string>();
-  const selected = [...focused, ...seeds].filter(chunk => {
+  const selected = [...updates, ...focused, ...seeds].filter(chunk => {
     if (seen.has(chunk.id)) return false;
     seen.add(chunk.id);
     return true;
-  });
+  }).slice(0, 6);
   const chunks = expandEvidence(selected, eligibleScope);
   const result: Answer = {
     id: randomUUID(), question, retrievalQuestion: plan.retrievalQuestion, answer: "当前所选文档中未找到该信息。请补充对应通知或尝试使用赛事名称、条件等关键词。",

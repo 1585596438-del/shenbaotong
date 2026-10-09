@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import type { Provider } from "./types";
 import { readModelSettings, type ProviderConfig } from "./model-settings";
+import { embeddingIssue, LOCAL_EMBEDDING_MODEL } from "./embedding-config";
+import { localEmbed, localModelReady, LOCAL_MODEL_REVISION } from "./local-embeddings";
 
 export type { ProviderConfig } from "./model-settings";
 export class ModelHttpError extends Error {
@@ -23,10 +25,13 @@ export class ApiProvider implements Provider {
   chatReady: boolean;
   embeddingReady: boolean;
   embeddingKey: string;
+  vectorThreshold: number;
   constructor(private config: ProviderConfig = readProviderConfig()) {
+    // BGE Small 实测同义组队问题约0.52；保留远程模型原有门槛。
+    this.vectorThreshold = config.embeddingModel === LOCAL_EMBEDDING_MODEL ? 0.5 : 0.58;
     this.chatReady = Boolean(config.baseUrl && config.apiKey && config.chatModel);
-    this.embeddingReady = Boolean(config.embeddingBaseUrl && config.embeddingApiKey && config.embeddingModel);
-    this.embeddingKey = createHash("sha256").update(`${config.embeddingBaseUrl}|${config.embeddingModel}`).digest("hex");
+    this.embeddingReady = config.embeddingModel === LOCAL_EMBEDDING_MODEL ? localModelReady() : Boolean(config.embeddingBaseUrl && config.embeddingApiKey && config.embeddingModel && !embeddingIssue(config.embeddingBaseUrl, config.embeddingModel));
+    this.embeddingKey = createHash("sha256").update(config.embeddingModel === LOCAL_EMBEDDING_MODEL ? `${LOCAL_EMBEDDING_MODEL}|${LOCAL_MODEL_REVISION}|q8|cls-window400-v1` : `${config.embeddingBaseUrl}|${config.embeddingModel}`).digest("hex");
   }
 
   private async request(baseUrl: string, apiKey: string, endpoint: string, body: unknown) {
@@ -45,6 +50,7 @@ export class ApiProvider implements Provider {
   }
 
   async embed(texts: string[]): Promise<number[][]> {
+    if (this.config.embeddingModel === LOCAL_EMBEDDING_MODEL) return localEmbed(texts);
     if (!this.embeddingReady) throw new Error("尚未配置嵌入模型。");
     const json = await this.request(this.config.embeddingBaseUrl, this.config.embeddingApiKey, "embeddings", { model: this.config.embeddingModel, input: texts });
     if (!Array.isArray(json.data) || json.data.length !== texts.length) throw new Error("嵌入服务返回的向量数量不正确。");
@@ -54,6 +60,10 @@ export class ApiProvider implements Provider {
     const dimension = Array.isArray(sorted[0]?.embedding) ? sorted[0].embedding.length : 0;
     if (!dimension || sorted.some((r, i) => r.index !== i || !Array.isArray(r.embedding) || r.embedding.length !== dimension || r.embedding.some(n => typeof n !== "number" || !Number.isFinite(n)) || !r.embedding.some(n => n !== 0))) throw new Error("嵌入服务返回了无效向量。");
     return sorted.map(r => r.embedding as number[]);
+  }
+
+  async embedQuery(text: string): Promise<number[]> {
+    return (await this.embed([this.config.embeddingModel === LOCAL_EMBEDDING_MODEL ? `为这个句子生成表示以用于检索相关文章：${text}` : text]))[0];
   }
 
   async generate(system: string, user: string) {

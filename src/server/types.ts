@@ -29,6 +29,8 @@ export type ChatSession = { id: string; title: string; documentIds: string[]; cr
 export type ChatDetail = { session: ChatSession; answers: Answer[] };
 export interface Provider {
   chatReady: boolean; embeddingReady: boolean; embeddingKey: string;
+  vectorThreshold?: number;
   embed(texts: string[]): Promise<number[][]>;
+  embedQuery?(text: string): Promise<number[]>;
   generate(system: string, user: string): Promise<string>;
 }

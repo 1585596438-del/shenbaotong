@@ -8,6 +8,7 @@ import { readModelSettings, prepareModelSettings, publicModelSettings, saveModel
 import { readProviderConfig, ApiProvider } from "../src/server/provider";
 import { GET, PUT } from "../src/app/api/settings/route";
 import { POST } from "../src/app/api/settings/test/route";
+import { LOCAL_EMBEDDING_MODEL } from "../src/server/embedding-config";
 
 test("网页模型配置：保存生效、密钥边界、接口保护和实际连接测试", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "shenbaotong-settings-"));
@@ -50,6 +51,21 @@ test("网页模型配置：保存生效、密钥边界、接口保护和实际�
       const oversized = request({ ...input, apiKey: "a".repeat(20_000) });
       assert.equal((await PUT(oversized)).status, 400);
       assert.equal(readFileSync(path.join(root, "model-settings.json"), "utf8"), original);
+    });
+    await t.test("智谱聊天模型不能冒充嵌入模型；本机模型保留聊天密钥但不需要嵌入密钥", async () => {
+      const zhipu = { ...input, baseUrl: "https://open.bigmodel.cn/api/paas/v4", apiKey: "fixture-chat-key", chatModel: "GLM-5.3-Flash", embeddingEnabled: true, embeddingModel: "GLM-5.3-Flash" };
+      assert.throws(() => prepareModelSettings(zhipu), /聊天模型/);
+      const invalid = { baseUrl: zhipu.baseUrl, apiKey: zhipu.apiKey, chatModel: zhipu.chatModel, embeddingBaseUrl: zhipu.baseUrl, embeddingApiKey: zhipu.apiKey, embeddingModel: zhipu.embeddingModel };
+      assert.equal(new ApiProvider(invalid).embeddingReady, false);
+      assert.match(publicModelSettings(invalid).embeddingIssue, /聊天模型/);
+      const config = prepareModelSettings({ ...zhipu, apiKey: "", embeddingModel: LOCAL_EMBEDDING_MODEL }, invalid);
+      assert.equal(config.apiKey, invalid.apiKey);
+      assert.equal(config.chatModel, invalid.chatModel);
+      assert.equal(config.embeddingApiKey, "");
+      const provider = new ApiProvider(config);
+      assert.equal(provider.chatReady, true);
+      assert.equal(provider.embeddingReady, false);
+      await assert.rejects(provider.embed(["资料"]), /setup:embeddings/);
     });
     await t.test("单独连接测试真实兼容接口，失败脱敏且不保存测试密钥", async () => {
       let invalid = false;

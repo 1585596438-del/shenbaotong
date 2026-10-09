@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { embeddingIssue, LOCAL_EMBEDDING_MODEL } from "./embedding-config";
 
 export type ProviderConfig = { baseUrl: string; apiKey: string; chatModel: string; embeddingBaseUrl: string; embeddingApiKey: string; embeddingModel: string };
 export class SettingsError extends Error {}
@@ -16,7 +17,7 @@ export function readModelSettings(): ProviderConfig {
   } catch { throw new SettingsError("本机模型配置无法读取，请检查配置文件后重试。"); }
 }
 export function publicModelSettings(config = readModelSettings()) {
-  return { baseUrl: config.baseUrl, chatModel: config.chatModel, hasApiKey: !!config.apiKey, embeddingBaseUrl: config.embeddingBaseUrl, embeddingModel: config.embeddingModel, hasEmbeddingApiKey: !!config.embeddingApiKey, embeddingEnabled: !!config.embeddingModel, embeddingUseChat: !config.embeddingBaseUrl && !config.embeddingApiKey };
+  return { baseUrl: config.baseUrl, chatModel: config.chatModel, hasApiKey: !!config.apiKey, embeddingBaseUrl: config.embeddingBaseUrl, embeddingModel: config.embeddingModel, hasEmbeddingApiKey: !!config.embeddingApiKey, embeddingEnabled: !!config.embeddingModel, embeddingUseChat: !config.embeddingBaseUrl && !config.embeddingApiKey, embeddingIssue: embeddingIssue(config.embeddingBaseUrl || config.baseUrl, config.embeddingModel) };
 }
 function text(value: unknown, label: string, max = 2000) {
   if (typeof value !== "string" || value.length > max || /[\r\n\u0000]/.test(value)) throw new SettingsError(`${label}格式不正确。`);
@@ -49,6 +50,9 @@ export function prepareModelSettings(input: unknown, previous = readModelSetting
   if (!data.embeddingEnabled) return { baseUrl, chatModel, apiKey, embeddingBaseUrl: "", embeddingApiKey: "", embeddingModel: "" };
   const embeddingModel = text(data.embeddingModel, "嵌入模型名称", 200);
   if (!embeddingModel) throw new SettingsError("请填写嵌入模型名称，或关闭向量检索配置。");
+  if (embeddingModel === LOCAL_EMBEDDING_MODEL) return { baseUrl, chatModel, apiKey, embeddingBaseUrl: "", embeddingApiKey: "", embeddingModel };
+  const issue = embeddingIssue(data.embeddingUseChat ? baseUrl : String(data.embeddingBaseUrl || ""), embeddingModel);
+  if (issue) throw new SettingsError(issue);
   if (data.embeddingUseChat) return { baseUrl, chatModel, apiKey, embeddingBaseUrl: "", embeddingApiKey: "", embeddingModel };
   const embeddingBaseUrl = url(data.embeddingBaseUrl, "嵌入API地址");
   const newEmbeddingKey = text(data.embeddingApiKey, "嵌入API密钥");

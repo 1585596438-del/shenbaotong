@@ -16,7 +16,7 @@ export function cosineSimilarity(a: number[], b: number[]) {
   return aa && bb ? dot / Math.sqrt(aa * bb) : 0;
 }
 
-export function rankChunks(question: string, chunks: Chunk[], queryVector?: number[], embeddingKey?: string): RankedChunk[] {
+export function rankChunks(question: string, chunks: Chunk[], queryVector?: number[], embeddingKey?: string, vectorThreshold = 0.58): RankedChunk[] {
   const queryTerms = terms(question);
   if (!queryTerms.length && !queryVector) return [];
   const ranked = chunks.map(chunk => {
@@ -36,5 +36,5 @@ export function rankChunks(question: string, chunks: Chunk[], queryVector?: numb
     const vectorScore = queryVector && chunk.embedding && chunk.embeddingKey === embeddingKey ? cosineSimilarity(queryVector, chunk.embedding) : 0;
     return { ...chunk, lexicalScore, vectorScore, score: lexicalScore * 0.65 + Math.max(0, vectorScore) * 0.35 };
   });
-  return ranked.filter(c => c.lexicalScore >= 0.24 || c.vectorScore >= 0.58).sort((a, b) => b.score - a.score).slice(0, 6);
+  return ranked.filter(c => c.lexicalScore >= 0.24 || c.vectorScore >= vectorThreshold).sort((a, b) => b.score - a.score).slice(0, 6);
 }
