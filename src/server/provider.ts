@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import type { Provider } from "./types";
+import { readModelSettings, type ProviderConfig } from "./model-settings";
 
-export type ProviderConfig = { baseUrl: string; apiKey: string; chatModel: string; embeddingBaseUrl: string; embeddingApiKey: string; embeddingModel: string };
+export type { ProviderConfig } from "./model-settings";
 export class ModelHttpError extends Error {
   constructor(readonly status: number) {
     super(status === 429
@@ -10,13 +11,11 @@ export class ModelHttpError extends Error {
   }
 }
 export function readProviderConfig(): ProviderConfig {
+  const config = readModelSettings();
   return {
-    baseUrl: process.env.AI_BASE_URL?.trim() || "",
-    apiKey: process.env.AI_API_KEY?.trim() || "",
-    chatModel: process.env.AI_CHAT_MODEL?.trim() || "",
-    embeddingBaseUrl: process.env.EMBEDDING_BASE_URL?.trim() || process.env.AI_BASE_URL?.trim() || "",
-    embeddingApiKey: process.env.EMBEDDING_API_KEY?.trim() || process.env.AI_API_KEY?.trim() || "",
-    embeddingModel: process.env.AI_EMBEDDING_MODEL?.trim() || "",
+    ...config,
+    embeddingBaseUrl: config.embeddingBaseUrl || config.baseUrl,
+    embeddingApiKey: config.embeddingApiKey || config.apiKey,
   };
 }
 

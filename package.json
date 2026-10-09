@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/core.test.ts tests/rag.test.ts tests/webpages.test.ts tests/competitions.test.ts tests/competition-routes.test.ts tests/competition-seed.test.ts tests/chats.test.ts tests/web-capture-import.test.ts",
+    "test": "tsx --test tests/core.test.ts tests/rag.test.ts tests/webpages.test.ts tests/competitions.test.ts tests/competition-routes.test.ts tests/competition-seed.test.ts tests/chats.test.ts tests/web-capture-import.test.ts tests/model-settings.test.ts",
     "setup:crawler": "node scripts/setup-crawler.mjs",
     "validate:data": "tsx scripts/validate-data.ts",
     "rules:import": "tsx scripts/import-competition-rules.ts",
