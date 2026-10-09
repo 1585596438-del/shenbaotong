@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import type { Answer, Citation, KnowledgeDocument, Chunk } from "@/server/types";
+import type { Answer, ChatDetail, ChatSession, Citation, KnowledgeDocument, Chunk } from "@/server/types";
+import { ChatPanel } from "./chat-panel";
 import { CompetitionLibrary } from "./competition-library";
 import type { WebCapture } from "@/server/webpages";
 
-type Status = { documents: KnowledgeDocument[]; answers: Answer[]; model: { chatReady: boolean; embeddingReady: boolean; chatModel: string; embeddingModel: string; embeddingKey: string } };
+type Status = { documents: KnowledgeDocument[]; answers: Answer[]; chats: ChatSession[]; model: { chatReady: boolean; embeddingReady: boolean; chatModel: string; embeddingModel: string; embeddingKey: string } };
 type Detail = KnowledgeDocument & { chunks: Omit<Chunk, "embedding" | "embeddingKey">[] };
 const kinds: Record<string, string> = { catalog: "竞赛目录", policy: "学校政策", notice: "比赛通知", rule: "竞赛规则" };
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
@@ -31,7 +32,7 @@ export function Workspace() {
     ruleEdit.current = { dirty: false, busy: false };
     return true;
   }
-  function switchTab(next: typeof tab) { if (next === tab || mayLeaveRules()) setTab(next); }
+  function switchTab(next: typeof tab) { if (next === tab || mayLeaveRules()) {setTab(next);setSidebarOpen(false);} }
   useEffect(() => {
     const leaving = (event: BeforeUnloadEvent) => { if (ruleEdit.current.dirty || ruleEdit.current.busy) { event.preventDefault(); event.returnValue = ""; } };
     window.addEventListener("beforeunload", leaving);
@@ -51,20 +52,77 @@ export function Workspace() {
   const [crawling, setCrawling] = useState(false);
   const [capture, setCapture] = useState<WebCapture | null>(null);
   const [activeAnswer, setActiveAnswer] = useState<string | null>(null);
+  const [chat, setChat] = useState<ChatDetail | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const activeChat = useRef<string | null>(null);
+  const chatDrafts = useRef(new Map<string,{question:string;documentIds:string[]}>());
   const [preview, setPreview] = useState<Detail | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [indexing, setIndexing] = useState<string | null>(null);
   const sourceRequest = useRef(0);
   const documents = status?.documents ?? [];
-  const answers = status?.answers ?? [];
+  const answers = chat?.answers ?? [];
   const answer = answers.find(a => a.id === activeAnswer) ?? answers.at(-1);
 
   async function refresh() {
     const current = await api<Status>("/api/status");
     setStatus(current);
     setSelected(ids => ids.filter(id => current.documents.some(d => d.id === id)));
+    if (activeChat.current) {
+      const id = activeChat.current;
+      const detail = await api<ChatDetail>(`/api/chats/${id}`);
+      if (activeChat.current === id) setChat(detail);
+    }
   }
-  useEffect(() => { refresh().catch(e => setError(e.message)); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    api<Status>("/api/status").then(async current => {
+      if (cancelled) return;
+      setStatus(current);
+      let id: string | null = null;
+      try { id = localStorage.getItem("shenbaotong.activeChat"); } catch { /* Storage can be unavailable. */ }
+      if (!id || !current.chats.some(item=>item.id===id)) return;
+      setChatLoading(true);
+      const detail = await api<ChatDetail>(`/api/chats/${id}`);
+      if (cancelled) return;
+      activeChat.current = id; setChat(detail); setSelected(detail.session.documentIds);
+    }).catch(e => { if (!cancelled) setError(e.message); }).finally(()=>{if (!cancelled) setChatLoading(false);});
+    return ()=>{cancelled=true;};
+  }, []);
+  function rememberChat(id: string) {
+    try { localStorage.setItem("shenbaotong.activeChat",id); } catch { /* Chats still persist in SQLite. */ }
+  }
+  useEffect(()=>{
+    if (!sidebarOpen || tab !== "chat" || !window.matchMedia("(max-width:640px)").matches) return;
+    const previous=document.activeElement as HTMLElement | null;
+    const sidebar=document.querySelector<HTMLElement>(".sidebar");
+    const focusable=()=>Array.from(sidebar?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled)') ?? []).filter(element=>!element.closest("[hidden]"));
+    focusable()[0]?.focus();
+    const key=(event:KeyboardEvent)=>{
+      if(event.key==="Escape"){event.preventDefault();setSidebarOpen(false);}
+      if(event.key==="Tab"){const elements=focusable(),first=elements[0],last=elements.at(-1);if(event.shiftKey && document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first?.focus();}}
+    };
+    document.addEventListener("keydown",key);
+    return ()=>{document.removeEventListener("keydown",key);if(previous?.isConnected)previous.focus();};
+  },[sidebarOpen,tab]);
+  async function chooseChat(id?: string) {
+    if (busy || chatLoading || !mayLeaveRules()) return;
+    if (id === activeChat.current) { setTab("chat"); setSidebarOpen(false); return; }
+    chatDrafts.current.set(activeChat.current ?? "",{question,documentIds:selected});
+    setChatLoading(true); setError("");
+    try {
+      const detail = await api<ChatDetail>(id ? `/api/chats/${id}` : "/api/chats",id ? undefined : {method:"POST"});
+      activeChat.current = detail.session.id; rememberChat(detail.session.id);
+      const draft = chatDrafts.current.get(detail.session.id);
+      setChat(detail); setSelected(draft?.documentIds.filter(id=>documents.some(doc=>doc.id===id)) ?? detail.session.documentIds); setQuestion(draft?.question ?? "");
+      setActiveAnswer(null); setEvidenceOpen(false); setScopeOpen(false); setSidebarOpen(false); setNotice(""); setTab("chat");
+      setStatus(old=>old ? {...old,chats:[detail.session,...old.chats.filter(item=>item.id!==detail.session.id)]} : old);
+    } catch(e) {setError(e instanceof Error ? e.message : "聊天加载失败，请重试。");}
+    finally {setChatLoading(false);}
+  }
   useEffect(() => {
     if (importing) { setImportTitle(""); setCapture(null); setWebUrl(""); setDynamicWeb(false); }
   }, [importing]);
@@ -98,11 +156,20 @@ export function Workspace() {
 
   async function ask(event: FormEvent) {
     event.preventDefault();
-    if (!question.trim() || busy) return;
+    if (!question.trim() || busy || chatLoading || !status) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      const result = await api<{ answer: Answer }>("/api/questions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, documentIds: selected, previousAnswerId: answer?.id }) });
-      setStatus(old => old ? { ...old, answers: [...old.answers.slice(-29), result.answer] } : old);
+      let sessionId = activeChat.current;
+      if (!sessionId) {
+        const detail = await api<ChatDetail>("/api/chats",{method:"POST"});
+        sessionId=detail.session.id; activeChat.current=sessionId; rememberChat(sessionId); setChat(detail);
+        setStatus(old=>old ? {...old,chats:[detail.session,...old.chats]} : old);
+      }
+      const result = await api<{ answer: Answer; session: ChatSession }>("/api/questions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, documentIds: selected, previousAnswerId: answers.at(-1)?.id, sessionId }) });
+      const detail = {session:result.session,answers:[...answers,result.answer]};
+      setChat(detail);
+      setStatus(old => old ? { ...old, chats:[detail.session,...old.chats.filter(item=>item.id!==sessionId)] } : old);
+      chatDrafts.current.delete(sessionId);
       setActiveAnswer(result.answer.id); setQuestion("");
     } catch (e) { setError(e instanceof Error ? e.message : "问答失败。"); }
     finally { setBusy(false); }
@@ -157,29 +224,30 @@ export function Workspace() {
     </article>;
   }
 
-  return <div className="workspace">
+  return <div className={`workspace ${tab === "chat" ? "chat-workspace" : ""} ${sidebarOpen ? "chat-sidebar-open" : ""}`}>
+    {tab === "chat" && sidebarOpen && <button className="chat-sidebar-scrim" aria-label="关闭聊天侧栏" onClick={()=>setSidebarOpen(false)} />}
     <aside className="sidebar">
+      {tab === "chat" && sidebarOpen && <button className="chat-sidebar-close" aria-label="关闭聊天记录" onClick={()=>setSidebarOpen(false)}>×</button>}
       <a className="brand" href="/" onClick={event => { if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; if (!mayLeaveRules()) event.preventDefault(); }} aria-label="申报通知识库首页"><span className="brand-mark">申</span><span>申报通<small>校园竞赛知识库</small></span></a>
       <nav aria-label="工作台导航">{(["chat", "library", "competitions", "settings"] as const).map(t => <button className={tab === t ? "nav-item active" : "nav-item"} key={t} onClick={() => switchTab(t)}><Icon name={t === "library" || t === "competitions" ? "book" : t} />{({ chat: "知识问答", library: "资料库", competitions: "竞赛规则", settings: "运行设置" })[t]}{t === "library" && <span className="count">{documents.length}</span>}</button>)}</nav>
+      {tab === "chat" && <><button className="new-chat" disabled={!status || busy || chatLoading} onClick={()=>chooseChat()}><Icon name="plus" />新建聊天</button><section className="chat-history" aria-label="聊天记录"><h2>最近聊天</h2>{status?.chats.map(item=><button key={item.id} className={chat?.session.id===item.id ? "chat-history-item active" : "chat-history-item"} disabled={busy || chatLoading} onClick={()=>chooseChat(item.id)} title={item.title}><Icon name="chat" /><span>{item.title}</span><small>{item.answerCount || "新"}</small></button>)}{status && !status.chats.length && <p>你的聊天会保存在这里</p>}</section></>}
+      <fieldset className="scope-controls" hidden={tab === "chat" && !scopeOpen} disabled={busy || chatLoading}>
       <div className="scope-heading"><span>本次检索范围</span><button onClick={() => setSelected([])} disabled={!selected.length}>重置</button></div>
       <label className="scope-all"><input type="checkbox" checked={!selected.length} onChange={() => setSelected([])} />全部资料 <span>{documents.length}</span></label>
       <div className="scope-list">{documents.map(doc => <label className={selected.includes(doc.id) ? "scope-doc checked" : "scope-doc"} key={doc.id}><input type="checkbox" checked={selected.includes(doc.id)} onChange={e => setSelected(ids => e.target.checked ? [...ids, doc.id] : ids.filter(id => id !== doc.id))} /><span>{doc.title}<small>{doc.year || "年份未标注"} · {kinds[doc.kind]}</small></span></label>)}{!documents.length && <p className="sidebar-empty">导入资料后，可以选择只在指定文档中查找。</p>}</div>
+      </fieldset>
       <div className="sidebar-bottom"><span className="local-dot" />本地工作区<small>资料保存在本机</small></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="breadcrumb">工作台 <span>/</span> {({ chat: "知识问答", library: "资料库", competitions: "竞赛规则", settings: "运行设置" })[tab]}</div><button className="primary small" onClick={() => { setError(""); setImporting(true); }}><Icon name="plus" />导入资料</button></header>
+      <header className="topbar">{tab === "chat" && <button className="chat-sidebar-toggle" aria-label="打开聊天记录" aria-expanded={sidebarOpen} onClick={()=>setSidebarOpen(value=>!value)}>☰</button>}<div className="breadcrumb">工作台 <span>/</span> {({ chat: "知识问答", library: "资料库", competitions: "竞赛规则", settings: "运行设置" })[tab]}</div><button className="primary small" onClick={() => { setError(""); setImporting(true); }}><Icon name="plus" />导入资料</button></header>
       <div className="content">
         <div className="page-heading"><div><p className="eyebrow">SHENBAOTONG / KNOWLEDGE</p><h1>{({ chat: "让每个答案，都有出处。", library: "从原始资料，建立知识。", competitions: "把比赛要求，逐条查清。", settings: "连接模型，开启引用问答。" })[tab]}</h1><p>{tab === "chat" ? "查目录、读政策、找要求。答案与原文放在一起核对。" : tab === "library" ? "按年度和阶段收集资料，保留每个片段的页码与来源。" : tab === "competitions" ? "按届次与赛道核对规则，保留未知项和原文依据。" : "配置仅在服务端读取，认证信息不会传到浏览器。"}</p></div><span className="mode-badge"><span className="local-dot" />{status?.model.chatReady ? "文本模型已配置" : "原文检索模式"}</span></div>
         {error && <div className="alert error" role="alert">{error}<button aria-label="关闭错误提示" onClick={() => setError("")}>×</button></div>}
         {notice && <div className="alert success" role="status">{notice}<button aria-label="关闭提示" onClick={() => setNotice("")}>×</button></div>}
         {!status && !error && <p className="loading" role="status">正在加载本地知识库…</p>}
-        {tab === "chat" && <div className="chat-grid">
-          <section className="chat-panel" aria-label="知识问答">
-            <div className="panel-heading"><h2>知识问答</h2><span>{selected.length ? `已选择 ${selected.length} 份资料` : `全部 ${documents.length} 份资料`}</span></div>
-            {!answers.length ? <div className="chat-empty"><span className="empty-mark"><Icon name="chat" /></span><h2>{documents.length ? "从一个具体问题开始" : "先放入你的第一份资料"}</h2><p>{documents.length ? "先查找原文，再根据证据作答。通知中的年份和阶段，需要分别核对。" : "上传竞赛目录、学校管理办法或比赛通知，建立可以查证的知识库。"}</p>{!documents.length ? <button className="outline" onClick={() => setImporting(true)}>导入 PDF / TXT / Markdown</button> : <div className="suggestions">{["中国大学生计算机设计大赛", "B类竞赛如何认定", "B类竞赛的省分赛如何分类"].map(q => <button key={q} onClick={() => setQuestion(q)}>{q}<span>↗</span></button>)}</div>}</div> : <div className="conversation">{answers.map(a => <article className={`answer-item ${answer?.id === a.id ? "selected" : ""}`} key={a.id}><div className="question-line"><span>你</span><p>{a.question}</p></div><div className="answer-body"><div className="answer-meta"><strong>申报通</strong><span>{a.mode === "generated" ? "引用问答" : a.mode === "extractive" ? "原文检索" : "未找到依据"}</span></div><p>{a.answer}</p>{a.warnings.length > 0 && <div className="answer-warning">{a.warnings.join(" ")}</div>}<button className="citation-link" onClick={() => setActiveAnswer(a.id)}>{a.citations.length ? `查看 ${a.citations.length} 条原文依据` : "本次没有引用"}<span>{a.retrievalMode === "hybrid" ? "混合检索" : "关键词检索"} · {(a.elapsedMs / 1000).toFixed(1)}秒</span></button></div></article>)}{busy && <p className="loading" role="status">正在检索资料并核对引用…</p>}</div>}
-            <form className="composer" onSubmit={ask}><label className="sr-only" htmlFor="question">输入问题</label><textarea id="question" value={question} onChange={e => setQuestion(e.target.value)} maxLength={1000} placeholder="例如：B类竞赛的省分赛如何认定？" rows={3} disabled={busy} /><div className="composer-footer"><span>{documents.length ? "仅依据知识库资料回答" : "请先导入资料"}</span><button className="primary" type="submit" disabled={busy || !question.trim() || !documents.length}>{busy ? "检索中…" : "发送"}<Icon name="arrow" /></button></div></form>
-          </section>
-          <aside className="evidence-panel" aria-label="原文依据"><div className="panel-heading"><h2>原文依据</h2><span>{answer?.citations.length ?? 0} 条</span></div>{answer && <p className="evidence-question">对应问题：{answer.question}</p>}{answer?.citations.length ? answer.citations.map(evidence) : <div className="evidence-empty"><Icon name="book" /><p>提问后，在这里查看来源、页码与原文片段。</p><small>未收录的信息不会补写成答案。</small></div>}</aside>
+        {tab === "chat" && <div className={`dialogue-layout ${evidenceOpen ? "with-evidence" : ""}`}>
+          <ChatPanel answers={answers} activeAnswer={answer?.id} question={question} busy={busy} loading={chatLoading || !status} documents={documents.length} selected={selected.length} scopeOpen={scopeOpen} title={chat?.session.title} onQuestion={setQuestion} onAsk={ask} onScope={()=>{setScopeOpen(value=>!value);setSidebarOpen(true);}} onEvidence={id=>{setActiveAnswer(id);setEvidenceOpen(true);}} onImport={()=>setImporting(true)} />
+          {evidenceOpen && <aside className="evidence-panel" aria-label="原文依据"><div className="panel-heading"><h2>原文依据 · {answer?.citations.length ?? 0} 条</h2><button className="close-evidence" aria-label="关闭原文依据" onClick={()=>setEvidenceOpen(false)}>×</button></div>{answer && <p className="evidence-question">对应问题：{answer.question}</p>}{answer?.citations.length ? answer.citations.map(evidence) : <div className="evidence-empty"><Icon name="book" /><p>本次未找到依据，可以补充资料或调整范围。</p></div>}</aside>}
         </div>}
         {tab === "library" && <section className="library"><div className="library-summary"><div><strong>{documents.length}</strong><span>份来源文档</span></div><div><strong>{documents.reduce((n, d) => n + d.chunkCount, 0)}</strong><span>个原文片段</span></div><div><strong>{documents.reduce((n, d) => n + d.indexedCount, 0)}</strong><span>个向量片段</span></div></div><div className="section-heading"><h2>来源文档</h2><span>同内容、同来源和同年度的资料自动去重</span></div>{!documents.length && <div className="library-empty"><h2>资料库还是空的</h2><p>先导入真实资料，再验证问题与出处。</p><button className="primary" onClick={() => setImporting(true)}>导入第一份资料</button></div>}{documents.map(doc => {
           const ready = doc.indexedCount === doc.chunkCount && doc.embeddingKey === status?.model.embeddingKey;

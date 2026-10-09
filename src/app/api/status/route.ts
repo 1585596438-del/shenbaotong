@@ -9,7 +9,7 @@ export async function GET() {
   const provider = new ApiProvider();
   const config = readProviderConfig();
   return NextResponse.json({
-    documents: store.listDocuments(), answers: store.listAnswers(),
+    documents: store.listDocuments(), answers: store.listAnswers(), chats: store.listChats(),
     model: { chatReady: provider.chatReady, embeddingReady: provider.embeddingReady,
       chatModel: config.chatModel, embeddingModel: config.embeddingModel, embeddingKey: provider.embeddingKey },
   });

@@ -4,7 +4,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { splitPages } from "./chunking";
 import { CompetitionStore } from "./competitions/store";
-import type { Answer, Chunk, DocumentInput, KnowledgeDocument } from "./types";
+import type { Answer, ChatDetail, ChatSession, Chunk, DocumentInput, KnowledgeDocument } from "./types";
 
 export class StaleCitationError extends Error {
   constructor() { super("回答处理期间来源文档已被删除，请重新选择资料后提问。"); }
@@ -35,6 +35,27 @@ export class KnowledgeStore {
       CREATE TABLE IF NOT EXISTS answers (id TEXT PRIMARY KEY, body TEXT NOT NULL, createdAt TEXT NOT NULL);
     `);
     this.competitions = new CompetitionStore(this.db);
+    this.db.transaction(() => {
+      const hasChats = !!this.db.prepare("SELECT name FROM sqlite_master WHERE name='chat_sessions'").get();
+      this.db.exec(`CREATE TABLE IF NOT EXISTS chat_sessions (
+        id TEXT PRIMARY KEY, title TEXT NOT NULL, documentIds TEXT NOT NULL,
+        createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS chat_answers (
+        answerId TEXT PRIMARY KEY REFERENCES answers(id) ON DELETE CASCADE,
+        sessionId TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE, sequence INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS chat_answers_session ON chat_answers(sessionId);`);
+      if (!hasChats) {
+        const rows = this.db.prepare("SELECT id,createdAt FROM answers ORDER BY createdAt,id").all() as {id:string;createdAt:string}[];
+        if (rows.length) {
+          const id = randomUUID();
+          this.db.prepare("INSERT INTO chat_sessions VALUES (?,?,?,?,?)").run(id,"历史聊天","[]",rows[0].createdAt,rows.at(-1)!.createdAt);
+          const link = this.db.prepare("INSERT INTO chat_answers VALUES (?,?,?)");
+          rows.forEach((row,index) => link.run(row.id,id,index));
+        }
+      }
+    }).immediate();
   }
 
   listDocuments(): KnowledgeDocument[] {
@@ -101,12 +122,38 @@ export class KnowledgeStore {
     })();
   }
 
-  saveAnswer(answer: Answer) {
+  saveAnswer(answer: Answer, sessionId?: string, documentIds: string[] = []) {
     this.db.transaction(() => {
+      if (sessionId && !this.getChat(sessionId)) throw new Error("聊天不存在，请重新选择。");
       const exists = this.db.prepare("SELECT 1 FROM chunks c JOIN documents d ON d.id=c.documentId WHERE c.id=? AND c.documentId=?");
       if (answer.citations.some(c => !exists.get(c.id, c.documentId))) throw new StaleCitationError();
       this.db.prepare("INSERT INTO answers VALUES (?,?,?)").run(answer.id, JSON.stringify(answer), answer.createdAt);
+      if (sessionId) {
+        const first = !this.db.prepare("SELECT 1 FROM chat_answers WHERE sessionId=? LIMIT 1").get(sessionId);
+        const sequence = (this.db.prepare("SELECT COALESCE(MAX(sequence),-1)+1 AS next FROM chat_answers WHERE sessionId=?").get(sessionId) as {next:number}).next;
+        this.db.prepare("INSERT INTO chat_answers VALUES (?,?,?)").run(answer.id,sessionId,sequence);
+        this.db.prepare("UPDATE chat_sessions SET title=CASE WHEN ? THEN ? ELSE title END,documentIds=?,updatedAt=? WHERE id=?")
+          .run(first ? 1 : 0,answer.question.slice(0,36),JSON.stringify(documentIds),answer.createdAt,sessionId);
+      }
     })();
+  }
+  listChats(): ChatSession[] {
+    const rows = this.db.prepare(`SELECT s.*,COUNT(a.answerId) AS answerCount FROM chat_sessions s
+      LEFT JOIN chat_answers a ON a.sessionId=s.id GROUP BY s.id ORDER BY s.updatedAt DESC,s.id`).all() as (Omit<ChatSession,"documentIds"> & {documentIds:string})[];
+    const existing = new Set(this.listDocuments().map(doc=>doc.id));
+    return rows.map(row=>({...row,documentIds:(JSON.parse(row.documentIds) as string[]).filter(id=>existing.has(id))}));
+  }
+  createChat(): ChatDetail {
+    const id = randomUUID(), now = new Date().toISOString();
+    this.db.prepare("INSERT INTO chat_sessions VALUES (?,?,?,?,?)").run(id,"新聊天","[]",now,now);
+    return this.getChat(id)!;
+  }
+  getChat(id: string): ChatDetail | null {
+    const session = this.listChats().find(chat=>chat.id===id);
+    if (!session) return null;
+    const rows = this.db.prepare(`SELECT a.body FROM answers a JOIN chat_answers c ON c.answerId=a.id
+      WHERE c.sessionId=? ORDER BY c.sequence`).all(id) as {body:string}[];
+    return {session,answers:rows.map(row=>JSON.parse(row.body) as Answer)};
   }
   listAnswers(): Answer[] { return (this.db.prepare("SELECT body FROM answers ORDER BY createdAt DESC LIMIT 30").all() as { body: string }[]).map(r => JSON.parse(r.body) as Answer).reverse(); }
   close() { this.db.close(); }

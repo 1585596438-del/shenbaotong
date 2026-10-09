@@ -68,14 +68,17 @@ export async function indexDocument(id: string, store: KnowledgeStore = getStore
   return store.listDocuments().find(d => d.id === id)!;
 }
 
-export async function answerQuestion(input: { question: string; documentIds?: string[]; previousAnswerId?: string }, store: KnowledgeStore = getStore(), provider: Provider | null = new ApiProvider()): Promise<Answer> {
+export async function answerQuestion(input: { question: string; documentIds?: string[]; previousAnswerId?: string; sessionId?: string }, store: KnowledgeStore = getStore(), provider: Provider | null = new ApiProvider()): Promise<Answer> {
   const started = Date.now();
   const question = input.question.trim();
   if (!question || question.length > 1000) throw new Error("问题不能为空，且不能超过1000字。");
   const documentIds = [...new Set(input.documentIds ?? [])];
   const allDocuments = store.listDocuments();
   if (documentIds.some(id => !allDocuments.some(d => d.id === id))) throw new Error("所选文档已不存在，请刷新知识库后重新选择。");
-  const previous = input.previousAnswerId ? store.listAnswers().find(a => a.id === input.previousAnswerId) : undefined;
+  const chat = input.sessionId ? store.getChat(input.sessionId) : null;
+  if (input.sessionId && !chat) throw new Error("聊天不存在，请重新选择。");
+  if (chat && input.previousAnswerId && !chat.answers.some(answer=>answer.id===input.previousAnswerId)) throw new Error("前一条问答不属于当前聊天。");
+  const previous = chat ? chat.answers.at(-1) : input.previousAnswerId ? store.listAnswers().find(a => a.id === input.previousAnswerId) : undefined;
   if (input.previousAnswerId && !previous) throw new Error("前一条问答已不存在，请刷新后重新提问。");
   const scopedDocuments = allDocuments.filter(d => !documentIds.length || documentIds.includes(d.id));
   const plan = planRetrieval(question, scopedDocuments, previous);
@@ -154,14 +157,14 @@ export async function answerQuestion(input: { question: string; documentIds?: st
     if (!queryVector) warnings.push("本次未使用向量检索；配置嵌入模型并为文档建立索引后可启用。");
   }
   result.elapsedMs = Date.now() - started;
-  try { store.saveAnswer(result); }
+  try { store.saveAnswer(result,input.sessionId,documentIds); }
   catch (error) {
     if (!(error instanceof StaleCitationError)) throw error;
     result.mode = "no_evidence";
     result.answer = "回答处理期间，相关来源文档已被删除。本次结果已撤回，请刷新资料范围后重新提问。";
     result.citations = [];
     result.warnings.push("来源文档在处理期间被删除，未展示或保存失效引用。");
-    store.saveAnswer(result);
+    store.saveAnswer(result,input.sessionId,documentIds);
   }
   return result;
 }
