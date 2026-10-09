@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { embeddingIssue, LOCAL_EMBEDDING_MODEL } from "@/server/embedding-config";
 
 type Saved = { baseUrl: string; chatModel: string; hasApiKey: boolean; embeddingBaseUrl: string; embeddingModel: string; hasEmbeddingApiKey: boolean; embeddingEnabled: boolean; embeddingUseChat: boolean };
 type Form = Omit<Saved, "hasApiKey" | "hasEmbeddingApiKey"> & { apiKey: string; embeddingApiKey: string };
@@ -21,14 +22,14 @@ export function ModelSettings({ onSaved, onEditState }: { onSaved: () => Promise
   const [message, setMessage] = useState("");
   const [dirty, setDirty] = useState(false);
   useEffect(() => { onEditState(dirty, !!busy); return () => onEditState(false, false); }, [dirty, busy, onEditState]);
-  function apply(value: Saved) { setSaved(value); setForm({ ...value, apiKey: "", embeddingApiKey: "" }); setProvider(providerFor(value.baseUrl)); setDirty(false); }
+  function apply(value: Saved) { setSaved(value); setForm({ baseUrl: value.baseUrl, chatModel: value.chatModel, embeddingBaseUrl: value.embeddingBaseUrl, embeddingModel: value.embeddingModel, embeddingEnabled: value.embeddingEnabled, embeddingUseChat: value.embeddingUseChat, apiKey: "", embeddingApiKey: "" }); setProvider(providerFor(value.baseUrl)); setDirty(false); }
   useEffect(() => { let cancelled = false; request<Saved>("/api/settings").then(value => { if (!cancelled) apply(value); }).catch(e => { if (!cancelled) setError(e.message); }); return () => { cancelled = true; }; }, []);
   useEffect(() => { const leave = (event: BeforeUnloadEvent) => { if (dirty || busy) { event.preventDefault(); event.returnValue = ""; } }; window.addEventListener("beforeunload", leave); return () => window.removeEventListener("beforeunload", leave); }, [dirty, busy]);
   function update(change: Partial<Form>) { setForm(value => value ? { ...value, ...change } : value); setDirty(true); setMessage(""); setError(""); }
   async function act(target: "save" | "chat" | "embedding") {
     if (!form || busy) return;
     setBusy(target); setError(""); setMessage("");
-    const { hasApiKey: _chatKey, hasEmbeddingApiKey: _embeddingKey, ...values } = { ...form, hasApiKey: saved?.hasApiKey, hasEmbeddingApiKey: saved?.hasEmbeddingApiKey };
+    const values = form;
     try {
       if (target === "save") { const result = await request<Saved>("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) }); apply(result); setMessage("已保存，后续问答立即使用此配置。当前资料和聊天保持不变。"); await onSaved(); }
       else { const result = await request<{ message: string }>("/api/settings/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, target }) }); setMessage(`${result.message}测试未保存配置。`); }
@@ -51,10 +52,12 @@ export function ModelSettings({ onSaved, onEditState }: { onSaved: () => Promise
       <fieldset disabled={!!busy} className="settings-card api-settings-fields"><legend>嵌入模型 · 可选</legend>
         <label className="api-check"><input type="checkbox" checked={form.embeddingEnabled} onChange={event => update({ embeddingEnabled: event.target.checked })} />配置向量检索</label>
         <p className="settings-note">关闭时仍可使用关键词检索和 AI 回答。启用后，还需在资料库为文档建立索引。</p>
-        {form.embeddingEnabled && <><label className="api-check"><input type="checkbox" checked={form.embeddingUseChat} onChange={event => update({ embeddingUseChat: event.target.checked })} />沿用聊天服务的地址与密钥</label><div className="api-form-grid">
+        {form.embeddingEnabled && <><div className="api-form-grid"><label className="api-wide">嵌入方式<select value={form.embeddingModel === LOCAL_EMBEDDING_MODEL ? "local" : "api"} onChange={event => update({ embeddingModel: event.target.value === "local" ? LOCAL_EMBEDDING_MODEL : "" })}><option value="local">本机免费中文模型 · 不调用API</option><option value="api">嵌入 API 服务</option></select></label></div>
+        {form.embeddingModel === LOCAL_EMBEDDING_MODEL ? <p>使用本机 BGE 中文模型生成向量，资料不会发送给嵌入服务，不消耗 API token。首次需下载模型文件；保存后在资料库建立索引。</p> : <><label className="api-check"><input type="checkbox" checked={form.embeddingUseChat} onChange={event => update({ embeddingUseChat: event.target.checked })} />沿用聊天服务的地址与密钥</label><div className="api-form-grid">
           <label className="api-wide">嵌入模型名称<input value={form.embeddingModel} onChange={event => update({ embeddingModel: event.target.value })} placeholder="填写支持文字嵌入的模型名称" maxLength={200} required /><small>应填写嵌入模型名称，不能直接使用聊天模型名称。</small></label>
           {!form.embeddingUseChat && <><label className="api-wide">嵌入 API 基础地址<input type="url" value={form.embeddingBaseUrl} onChange={event => update({ embeddingBaseUrl: event.target.value })} placeholder="https://服务地址/实际API前缀" maxLength={2000} required /></label><label className="api-wide">嵌入 API 密钥<input type="password" autoComplete="new-password" spellCheck={false} value={form.embeddingApiKey} onChange={event => update({ embeddingApiKey: event.target.value })} placeholder={saved?.hasEmbeddingApiKey ? "已配置；留空保留" : "填写嵌入服务的密钥"} maxLength={2000} /></label></>}
-        </div><button type="button" className="outline small" onClick={() => void act("embedding")}>{busy === "embedding" ? "正在测试…" : "测试嵌入连接"}</button><p className="settings-note">更换嵌入服务或模型后，需要重新建立索引；已有原文保留。</p></>}
+        </div>{embeddingIssue(form.embeddingUseChat ? form.baseUrl : form.embeddingBaseUrl, form.embeddingModel) && <p className="api-feedback api-error" role="alert">{embeddingIssue(form.embeddingUseChat ? form.baseUrl : form.embeddingBaseUrl, form.embeddingModel)}</p>}</>}
+        <button type="button" className="outline small" onClick={() => void act("embedding")}>{busy === "embedding" ? "正在测试…" : form.embeddingModel === LOCAL_EMBEDDING_MODEL ? "测试本机嵌入模型" : "测试嵌入连接"}</button><p className="settings-note">更换嵌入服务或模型后，需要重新建立索引；已有原文保留。</p></>}
       </fieldset>
       <div className="api-settings-actions"><button type="submit" disabled={!!busy || !dirty}>{busy === "save" ? "正在保存…" : "保存 API 配置"}</button><button type="button" className="outline" disabled={!!busy || !dirty} onClick={() => { if (saved) apply(saved); setError(""); setMessage(""); }}>放弃修改</button><span>{dirty ? "有未保存的修改" : "当前配置已保存"}</span></div>
       <p className="settings-note">测试会调用对应模型，但不会保存配置或修改资料。密钥保存在本机配置文件中，不上传 GitHub，也不写入聊天。</p>

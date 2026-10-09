@@ -7,13 +7,16 @@
     "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/core.test.ts tests/rag.test.ts tests/webpages.test.ts tests/competitions.test.ts tests/competition-routes.test.ts tests/competition-seed.test.ts tests/chats.test.ts tests/web-capture-import.test.ts tests/model-settings.test.ts",
+    "test": "tsx --test tests/core.test.ts tests/rag.test.ts tests/webpages.test.ts tests/competitions.test.ts tests/competition-routes.test.ts tests/competition-seed.test.ts tests/chats.test.ts tests/web-capture-import.test.ts tests/model-settings.test.ts tests/local-embeddings.test.ts",
     "setup:crawler": "node scripts/setup-crawler.mjs",
     "validate:data": "tsx scripts/validate-data.ts",
     "rules:import": "tsx scripts/import-competition-rules.ts",
-    "sources:import": "tsx scripts/import-web-captures.ts"
+    "sources:import": "tsx scripts/import-web-captures.ts",
+    "setup:embeddings": "python scripts/setup-local-embeddings.py",
+    "index:local": "tsx scripts/index-local-knowledge.ts"
   },
   "dependencies": {
+    "@huggingface/transformers": "3.8.1",
     "@mozilla/readability": "0.6.0",
     "better-sqlite3": "12.11.1",
     "ipaddr.js": "2.5.0",

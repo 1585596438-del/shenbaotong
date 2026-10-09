@@ -12,6 +12,48 @@ async function setup() {
   return { store, first, close() { store.close(); rmSync(root, { recursive: true, force: true }); } };
 }
 
+test("学校类别认定只查政策和目录，不把比赛内部赛道分类当学校认定", async () => {
+  const env = await setup();
+  try {
+    const policy = env.store.importDocument({ title: "学校竞赛管理办法", kind: "policy", competition: "", sourceUrl: "", year: "2023", stage: "", fileName: "policy.txt", pages: [{ page: 1, text: "学校竞赛类别认定由教务部门按照竞赛管理办法审核。学分奖励须办理校内认定。" }] }).document;
+    env.store.importDocument({ title: "农业比赛规则", kind: "rule", competition: "农业比赛", sourceUrl: "", year: "2026", stage: "全国", fileName: "rule.txt", pages: [{ page: 1, text: "竞赛类别为A类、B类、C类、D类，按作品赛道分类。" }] });
+    const { answerQuestion } = await import("../src/server/rag");
+    const answer = await answerQuestion({ question: "学校竞赛类别如何认定？" }, env.store, null);
+    assert.ok(answer.citations.length);
+    assert.ok(answer.citations.every(c => c.documentId === policy.id));
+  } finally { env.close(); }
+});
+
+test("ISCC简称与赛区共同限定来源，不混用河南和上海报名截止", async () => {
+  const env = await setup();
+  try {
+    const base = { kind: "notice" as const, competition: "全国大学生信息安全与对抗技术竞赛", sourceUrl: "", year: "2026", fileName: "notice.pdf" };
+    const shanghai = env.store.importDocument({ ...base, title: "2026 ISCC上海区域赛通知", stage: "上海区域赛", pages: [{ page: 2, text: "上海区域赛报名截止时间为2026年05月06日20:00。" }] }).document;
+    env.store.importDocument({ ...base, title: "2026 ISCC河南区域赛通知", stage: "河南区域赛", pages: [{ page: 2, text: "河南区域赛报名截止时间为2026年04月30日20:00。" }] });
+    const { answerQuestion } = await import("../src/server/rag");
+    const answer = await answerQuestion({ question: "2026年ISCC上海赛区报名什么时候截止？" }, env.store, null);
+    assert.ok(answer.citations.length);
+    assert.ok(answer.citations.every(c => c.documentId === shanghai.id));
+  } finally { env.close(); }
+});
+
+test("软件杯提交日程优先取对应延期通知，保留原通知用于资格查询", async () => {
+  const env = await setup();
+  try {
+    const base = { kind: "notice" as const, competition: "中国软件杯大学生软件设计大赛", sourceUrl: "", year: "2026（第15届）", fileName: "notice.txt" };
+    const old = env.store.importDocument({ ...base, title: "软件杯原始举办通知", stage: "原始通知（时间须结合延期通知）", pages: [{ page: null, text: "软件杯作品提交截止日期为2026年6月30日。参赛团队必须由在校学生组成。" }] }).document;
+    const update = env.store.importDocument({ ...base, title: "软件杯延期与作品提交截止通知", stage: "报名延期、初赛提交", pages: [{ page: null, text: "软件杯作品提交截止时间调整为2026年7月20日15:00。" }] }).document;
+    const { answerQuestion } = await import("../src/server/rag");
+    const schedule = await answerQuestion({ question: "软件杯作品提交截止日期是什么时候？" }, env.store, null);
+    assert.equal(schedule.citations[0].documentId, update.id);
+    assert.ok(schedule.citations.every(c => c.documentId !== old.id));
+    const eligibility = await answerQuestion({ question: "软件杯参赛团队必须由在校学生组成吗？" }, env.store, null);
+    assert.ok(eligibility.citations.some(c => c.documentId === old.id));
+    const followUp = await answerQuestion({ question: "那参赛团队必须由在校学生组成吗？", previousAnswerId: schedule.id }, env.store, null);
+    assert.ok(followUp.citations.some(c => c.documentId === old.id));
+  } finally { env.close(); }
+});
+
 test("完整赛事名不能挤掉正文中的团队人数条款", async () => {
   const { answerQuestion } = await import("../src/server/rag");
   const env = await setup();

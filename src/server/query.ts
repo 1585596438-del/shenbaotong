@@ -9,6 +9,7 @@ const competitions = [
   ["人工智能创意赛", "c4-ai"],
   ["天梯赛", "团体程序设计天梯赛", "程序设计天梯赛"],
   ["信息安全竞赛", "信息安全作品赛", "信息安全大赛"],
+  ["信息安全与对抗技术竞赛", "iscc"],
 ];
 const normalize = (text: string) => text.toLowerCase().replace(/[\s“”"'·／/（）()_-]/g, "");
 function topics(text: string) { const value = normalize(text); return competitions.filter(aliases => aliases.some(alias => value.includes(normalize(alias)))); }
@@ -28,6 +29,8 @@ export function planRetrieval(question: string, documents: KnowledgeDocument[], 
   const targets = named.length ? named : topics(previousQuestion);
   const policy = /[abcd]类|认定|学分|管理办法|学校.*奖励/i.test(question);
   let candidates = documents;
+  const schoolPolicy = /认定|学分|管理办法|学校.*(?:类别|分类|奖励)/.test(current);
+  if (schoolPolicy) candidates = candidates.filter(doc => ["policy", "catalog"].includes(doc.kind));
   if (targets.length) {
     candidates = candidates.filter(doc => {
       if (policy && ["policy", "catalog"].includes(doc.kind)) return true;
@@ -51,6 +54,10 @@ export function planRetrieval(question: string, documents: KnowledgeDocument[], 
   if (targets.some(aliases => aliases.includes("蓝桥杯"))) {
     const tracks = ["python", "java", "c/c++", "web", "网络安全", "软件测试"].filter(track => normalize(retrievalQuestion).includes(normalize(track)));
     if (tracks.length) candidates = candidates.filter(d => !normalize(d.competition || d.title).includes("蓝桥杯") || tracks.some(track => normalize(d.competition + d.title).includes(normalize(track))) || (/时间|日期|截止|赛程|报名/.test(current) && d.kind === "notice"));
+  }
+  if (targets.some(aliases => aliases.includes("iscc"))) {
+    const region = ["河南", "上海", "综合"].find(value => current.includes(value));
+    if (region && !schoolPolicy) candidates = candidates.filter(d => (d.title + d.stage).includes(region));
   }
   // 赛事全名已用于限定来源；条款检索再突出用户实际询问的条件。
   let focusQuestion = normalize(retrievalQuestion);
