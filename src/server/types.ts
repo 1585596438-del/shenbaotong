@@ -21,16 +21,17 @@ export type Citation = {
 export type Answer = {
   id: string; question: string; answer: string;
   retrievalQuestion?: string;
-  mode: "generated" | "extractive" | "no_evidence";
+  mode: "generated" | "extractive" | "no_evidence" | "conversation";
   retrievalMode: "hybrid" | "keyword"; citations: Citation[];
   warnings: string[]; elapsedMs: number; createdAt: string;
 };
 export type ChatSession = { id: string; title: string; documentIds: string[]; createdAt: string; updatedAt: string; answerCount: number };
 export type ChatDetail = { session: ChatSession; answers: Answer[] };
+export type ConversationMessage = { role: "user" | "assistant"; content: string };
 export interface Provider {
   chatReady: boolean; embeddingReady: boolean; embeddingKey: string;
   vectorThreshold?: number;
   embed(texts: string[]): Promise<number[][]>;
   embedQuery?(text: string): Promise<number[]>;
-  generate(system: string, user: string): Promise<string>;
+  generate(system: string, user: string, history?: ConversationMessage[]): Promise<string>;
 }

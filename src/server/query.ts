@@ -18,14 +18,30 @@ function resolveYear(question: string, date: Date) {
   return question.replace(/今年|本年度|本年/g, `${year}年`).replace(/明年|下一年/g, `${year + 1}年`).replace(/去年|上一年/g, `${year - 1}年`);
 }
 
-export function planRetrieval(question: string, documents: KnowledgeDocument[], previous?: Answer, now = new Date()) {
+export function planRetrieval(question: string, documents: KnowledgeDocument[], previous?: Answer, now = new Date(), history: Answer[] = previous ? [previous] : []) {
   const current = resolveYear(question, now);
   const named = topics(current);
   const explicitNames = documents.map(d => d.competition.split(/[／/]/)[0]).filter(name => name.length >= 3 && normalize(current).includes(normalize(name)));
-  // 只将明确的追问继承为检索主题；先前生成的答案不能当作事实证据。
-  const followUp = !!previous && !named.length && !explicitNames.length && /详细|讲一下|介绍一下|展开|具体|它|这个|这些|上面|继续|还有|那|多少人|要交什么|怎么报名|什么时候|截止|人数|费用|材料|组队|资格/.test(question);
-  const previousQuestion = followUp ? resolveYear(previous!.retrievalQuestion || previous!.question, new Date(previous!.createdAt)).slice(0, 1600) : "";
-  const retrievalQuestion = previousQuestion ? `${previousQuestion}\n用户追问：${current}` : current;
+  // 从本会话用户问题找最近赛事锚点；不递归拼接旧检索问题，也不把旧回答当事实。
+  const recent = history.slice(-8);
+  const identities = (text: string) => documents.map(d => d.competition.split(/[／/]/)[0]).filter(name => name.length >= 3 && normalize(text).includes(normalize(name)));
+  let anchorIndex = -1;
+  recent.forEach((answer, index) => { if (topics(answer.question).length || identities(answer.question).length || /认定|学分|管理办法|学校.*(?:类别|分类|奖励)/.test(answer.question)) anchorIndex = index; });
+  if (anchorIndex < 0) anchorIndex = Math.max(0, recent.length - 1);
+  const anchor = recent[anchorIndex] || previous;
+  const anchorText = anchor && (topics(anchor.question).length || identities(anchor.question).length ? anchor.question : anchor.retrievalQuestion || anchor.question);
+  const followUp = !!previous && !named.length && !explicitNames.length && !/换个话题|重新开始|聊点别的/.test(question) && /详细|讲一下|介绍一下|展开|具体|它|这个|这些|上面|之前|刚才|继续|还有|那|报名|什么时候|截止|人数|费用|材料|组队|资格|老师|教师|奖项|获奖|证书|流程|提交|学生|限制|名额|赛区|呢[？?]?$/.test(question);
+  const previousQuestion = followUp && anchor ? resolveYear(anchorText!, new Date(anchor.createdAt)).slice(0, 1000) : "";
+  const relatedQuestions = recent.slice(anchorIndex).map(answer => resolveYear(answer.question, new Date(answer.createdAt)));
+  const trackTerms = ["python", "java", "c/c++", "web", "网络安全", "软件测试"];
+  const trackQuestion = [current, ...relatedQuestions.slice().reverse()].find(text => trackTerms.some(track => normalize(text).includes(normalize(track)))) || "";
+  const contextTracks = trackTerms.filter(track => normalize(trackQuestion).includes(normalize(track)));
+  const regionQuestion = [current, ...relatedQuestions.slice().reverse()].find(text => ["河南", "上海", "综合"].some(region => text.includes(region))) || "";
+  const contextRegion = ["河南", "上海", "综合"].filter(region => regionQuestion.includes(region));
+  const yearQuestion = [current, ...relatedQuestions.slice().reverse()].find(text => /20\d{2}/.test(text)) || "";
+  const inheritedNames = identities(previousQuestion);
+  const contextTopic = [...new Set([...topics(previousQuestion).map(aliases => aliases.find(alias => /大赛|竞赛/.test(alias)) || aliases[0]), ...inheritedNames, ...(yearQuestion.match(/20\d{2}/g) || previousQuestion.match(/20\d{2}/g) || []), ...contextTracks, ...contextRegion])].join(" ");
+  const retrievalQuestion = previousQuestion ? `${contextTopic || previousQuestion}\n用户追问：${current}` : current;
   const targets = named.length ? named : topics(previousQuestion);
   const policy = /[abcd]类|认定|学分|管理办法|学校.*奖励/i.test(question);
   let candidates = documents;
@@ -40,12 +56,13 @@ export function planRetrieval(question: string, documents: KnowledgeDocument[], 
     });
   } else {
     // 新导入赛事可用元数据全名定位，不依赖内置名单。
-    if (explicitNames.length) candidates = candidates.filter(d => explicitNames.some(name => d.competition.startsWith(name)) || (policy && ["policy", "catalog"].includes(d.kind)));
-    else if (followUp && previous!.citations.length) candidates = candidates.filter(d => previous!.citations.some(c => c.documentId === d.id));
+    const requestedNames = explicitNames.length ? explicitNames : followUp ? inheritedNames : [];
+    if (requestedNames.length) candidates = candidates.filter(d => requestedNames.some(name => d.competition.startsWith(name)) || (policy && ["policy", "catalog"].includes(d.kind)));
+    else if (followUp && anchor?.citations.length) candidates = candidates.filter(d => anchor.citations.some(c => c.documentId === d.id));
   }
   const years = [...new Set((current.match(/20\d{2}/g) ?? []))];
-  if (!years.length && previousQuestion) years.push(...new Set(previousQuestion.match(/20\d{2}/g) ?? []));
-  if (years.length && (targets.length || explicitNames.length)) candidates = candidates.filter(d => {
+  if (!years.length && previousQuestion) years.push(...new Set((yearQuestion || previousQuestion).match(/20\d{2}/g) ?? []));
+  if (years.length && (targets.length || explicitNames.length || (followUp && inheritedNames.length))) candidates = candidates.filter(d => {
     if (policy && ["policy", "catalog"].includes(d.kind)) return true;
     const recorded = d.year || (d.title.match(/20\d{2}/g) ?? []).join("、");
     // 未填写年份的资料仍检索原文核对，不能仅因元数据空白漏掉已抓取内容。
@@ -56,14 +73,14 @@ export function planRetrieval(question: string, documents: KnowledgeDocument[], 
     if (tracks.length) candidates = candidates.filter(d => !normalize(d.competition || d.title).includes("蓝桥杯") || tracks.some(track => normalize(d.competition + d.title).includes(normalize(track))) || (/时间|日期|截止|赛程|报名/.test(current) && d.kind === "notice"));
   }
   if (targets.some(aliases => aliases.includes("iscc"))) {
-    const region = ["河南", "上海", "综合"].find(value => current.includes(value));
+    const region = ["河南", "上海", "综合"].find(value => (followUp ? regionQuestion : current).includes(value));
     if (region && !schoolPolicy) candidates = candidates.filter(d => (d.title + d.stage).includes(region));
   }
   // 赛事全名已用于限定来源；条款检索再突出用户实际询问的条件。
-  let focusQuestion = normalize(retrievalQuestion);
+  let focusQuestion = normalize(current);
   for (const name of [...new Set(explicitNames)].sort((a, b) => b.length - a.length)) focusQuestion = focusQuestion.replaceAll(normalize(name), " ");
   focusQuestion = focusQuestion.replace(/20\d{2}年?/g, " ").trim();
-  return { retrievalQuestion, previousQuestion, documents: candidates, topicMatched: !!targets.length || !!explicitNames.length, focusQuestion: explicitNames.length ? focusQuestion : "" };
+  return { retrievalQuestion, previousQuestion, documents: candidates, topicMatched: !!targets.length || !!explicitNames.length, explicitTopic: !!named.length || !!explicitNames.length, focusQuestion: explicitNames.length || followUp ? focusQuestion : "" };
 }
 
 // 补齐短标题后紧邻的条款，不重新分块数据库，引用仍使用实际原文片段 ID。

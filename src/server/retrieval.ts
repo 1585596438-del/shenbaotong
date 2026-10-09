@@ -1,7 +1,7 @@
 import type { Chunk, RankedChunk } from "./types";
 
 const segmenter = new Intl.Segmenter("zh", { granularity: "word" });
-const stopWords = new Set(["的", "了", "吗", "呢", "我", "你", "是", "有", "和", "与", "什么", "哪些", "怎么", "如何", "是否", "可以", "请问", "这个", "多少", "参加", "比赛", "竞赛", "要求", "学校", "说明", "给出", "全国", "中国", "大学生", "大赛"]);
+const stopWords = new Set(["的", "了", "吗", "呢", "我", "你", "是", "有", "和", "与", "什么", "哪些", "怎么", "如何", "是否", "可以", "请问", "这个", "多少", "参加", "比赛", "竞赛", "要求", "学校", "说明", "给出", "全国", "中国", "大学生", "大赛", "用户", "追问", "还有", "具体", "详细", "一下", "之前", "刚才"]);
 function normalize(text: string) { return text.toLowerCase().replace(/\s+/g, ""); }
 function terms(text: string) {
   const values = [...segmenter.segment(text.toLowerCase())].filter(s => s.isWordLike).map(s => s.segment).filter(s => !stopWords.has(s) && (s.length > 1 || /^[a-z0-9]$/i.test(s)));
