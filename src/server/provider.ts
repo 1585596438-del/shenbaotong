@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Provider } from "./types";
+import type { Provider, ConversationMessage } from "./types";
 import { readModelSettings, type ProviderConfig } from "./model-settings";
 import { embeddingIssue, LOCAL_EMBEDDING_MODEL } from "./embedding-config";
 import { localEmbed, localModelReady, LOCAL_MODEL_REVISION } from "./local-embeddings";
@@ -66,14 +66,14 @@ export class ApiProvider implements Provider {
     return (await this.embed([this.config.embeddingModel === LOCAL_EMBEDDING_MODEL ? `为这个句子生成表示以用于检索相关文章：${text}` : text]))[0];
   }
 
-  async generate(system: string, user: string) {
+  async generate(system: string, user: string, history: ConversationMessage[] = []) {
     if (!this.chatReady) throw new Error("尚未配置文本模型。");
     // 智谱免费模型直接回答，避免有限输出额度被深度思考占满。
     const zhipuFlash = /^https:\/\/open\.bigmodel\.cn(?::443)?(?:\/|$)/i.test(this.config.baseUrl) && this.config.chatModel.toLowerCase() === "glm-4.7-flash";
     const json = await this.request(this.config.baseUrl, this.config.apiKey, "chat/completions", {
       model: this.config.chatModel, temperature: 0.1, max_tokens: 1600,
       ...(zhipuFlash ? { thinking: { type: "disabled" } } : {}),
-      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      messages: [{ role: "system", content: system }, ...history, { role: "user", content: user }],
     });
     const choices = json.choices as { message?: { content?: unknown } }[] | undefined;
     const content = choices?.[0]?.message?.content;
