@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import type { Answer, ChatDetail, ChatSession, Citation, KnowledgeDocument, Chunk } from "@/server/types";
 import { ChatPanel } from "./chat-panel";
 import { CompetitionLibrary } from "./competition-library";
+import { ModelSettings } from "./model-settings";
 import type { WebCapture } from "@/server/webpages";
 
 type Status = { documents: KnowledgeDocument[]; answers: Answer[]; chats: ChatSession[]; model: { chatReady: boolean; embeddingReady: boolean; chatModel: string; embeddingModel: string; embeddingKey: string } };
@@ -25,11 +26,16 @@ export function Workspace() {
   const [status, setStatus] = useState<Status | null>(null);
   const [tab, setTab] = useState<"chat" | "library" | "competitions" | "settings">("chat");
   const ruleEdit = useRef({ dirty: false, busy: false });
+  const modelEdit = useRef({ dirty: false, busy: false });
+  const modelEditChanged = useCallback((dirty: boolean, busy: boolean) => { modelEdit.current = { dirty, busy }; }, []);
   const ruleEditChanged = useCallback((dirty: boolean, busy: boolean) => { ruleEdit.current = { dirty, busy }; }, []);
   function mayLeaveRules() {
+    if (modelEdit.current.busy) return false;
+    if (modelEdit.current.dirty && !window.confirm("有未保存的API配置，是否放弃修改并离开？")) return false;
     if (ruleEdit.current.busy) return false;
     if (ruleEdit.current.dirty && !window.confirm("有未保存的规则修改，是否放弃修改并离开？")) return false;
     ruleEdit.current = { dirty: false, busy: false };
+    modelEdit.current = { dirty: false, busy: false };
     return true;
   }
   function switchTab(next: typeof tab) { if (next === tab || mayLeaveRules()) {setTab(next);setSidebarOpen(false);} }
@@ -241,7 +247,7 @@ export function Workspace() {
     <main className="main">
       <header className="topbar">{tab === "chat" && <button className="chat-sidebar-toggle" aria-label="打开聊天记录" aria-expanded={sidebarOpen} onClick={()=>setSidebarOpen(value=>!value)}>☰</button>}<div className="breadcrumb">工作台 <span>/</span> {({ chat: "知识问答", library: "资料库", competitions: "竞赛规则", settings: "运行设置" })[tab]}</div><button className="primary small" onClick={() => { setError(""); setImporting(true); }}><Icon name="plus" />导入资料</button></header>
       <div className="content">
-        <div className="page-heading"><div><p className="eyebrow">SHENBAOTONG / KNOWLEDGE</p><h1>{({ chat: "让每个答案，都有出处。", library: "从原始资料，建立知识。", competitions: "把比赛要求，逐条查清。", settings: "连接模型，开启引用问答。" })[tab]}</h1><p>{tab === "chat" ? "查目录、读政策、找要求。答案与原文放在一起核对。" : tab === "library" ? "按年度和阶段收集资料，保留每个片段的页码与来源。" : tab === "competitions" ? "按届次与赛道核对规则，保留未知项和原文依据。" : "配置仅在服务端读取，认证信息不会传到浏览器。"}</p></div><span className="mode-badge"><span className="local-dot" />{status?.model.chatReady ? "文本模型已配置" : "原文检索模式"}</span></div>
+        <div className="page-heading"><div><p className="eyebrow">SHENBAOTONG / KNOWLEDGE</p><h1>{({ chat: "让每个答案，都有出处。", library: "从原始资料，建立知识。", competitions: "把比赛要求，逐条查清。", settings: "连接模型，开启引用问答。" })[tab]}</h1><p>{tab === "chat" ? "查目录、读政策、找要求。答案与原文放在一起核对。" : tab === "library" ? "按年度和阶段收集资料，保留每个片段的页码与来源。" : tab === "competitions" ? "按届次与赛道核对规则，保留未知项和原文依据。" : "选择服务商并填写 API 配置，保存后即可使用。"}</p></div><span className="mode-badge"><span className="local-dot" />{status?.model.chatReady ? "文本模型已配置" : "原文检索模式"}</span></div>
         {error && <div className="alert error" role="alert">{error}<button aria-label="关闭错误提示" onClick={() => setError("")}>×</button></div>}
         {notice && <div className="alert success" role="status">{notice}<button aria-label="关闭提示" onClick={() => setNotice("")}>×</button></div>}
         {!status && !error && <p className="loading" role="status">正在加载本地知识库…</p>}
@@ -254,7 +260,7 @@ export function Workspace() {
           return <article className="document-row" key={doc.id}><span className="document-icon"><Icon name="book" /></span><div className="document-info"><div className="document-labels"><span>{kinds[doc.kind]}</span><span>{doc.year || "年份未标注"}</span>{doc.stage && <span>{doc.stage}</span>}</div><h3>{doc.title}</h3><p>{doc.pageCount ? `${doc.pageCount} 页 · ` : ""}{doc.chunkCount} 个片段 · {doc.characterCount.toLocaleString()} 字符 <span className={ready ? "index-state ready" : "index-state"}>{ready ? "向量索引就绪" : doc.indexedCount ? "需要重新索引" : "可用原文检索"}</span></p></div><div className="document-actions"><button className="outline small" onClick={() => openSource(doc.id)}>查看原文</button><button className="text-button" disabled={indexing !== null || !status?.model.embeddingReady} onClick={() => index(doc)} title={!status?.model.embeddingReady ? "先在运行设置中配置嵌入模型" : "重新建立此文档的向量索引"}>{indexing === doc.id ? "索引中…" : ready ? "重新索引" : "建立索引"}</button><button className="delete-button" onClick={() => removeDocument(doc)}>删除</button></div></article>;
         })}</section>}
         {tab === "competitions" && <CompetitionLibrary onEditState={ruleEditChanged} documents={documents} onSource={openSource} onLibrary={() => switchTab("library")} onAsk={ids => { if (!mayLeaveRules()) return; setSelected(ids.filter(id => documents.some(doc => doc.id === id))); setTab("chat"); setNotice("已选择该规则的原文范围，请输入问题后发送。"); }} />}
-        {tab === "settings" && <section className="settings"><div className="settings-card"><h2>当前运行状态</h2><dl><dt>文本模型</dt><dd>{status?.model.chatReady ? status.model.chatModel : "未配置 · 展示原文片段"}</dd><dt>嵌入模型</dt><dd>{status?.model.embeddingReady ? status.model.embeddingModel : "未配置 · 使用关键词检索"}</dd><dt>数据保存</dt><dd>本机 SQLite 数据库</dd></dl><p className="settings-note">配置状态表示参数齐全。实际连接结果会在提问和建立索引时检查。</p></div><div className="settings-card"><h2>连接模型服务</h2><p>将项目根目录的 <code>.env.example</code> 复制为 <code>.env.local</code>，在本机填写兼容接口的服务地址、密钥和模型名，然后重启服务。</p><pre>{"AI_BASE_URL=服务接口基础地址（含实际API前缀）\nAI_API_KEY=在本机填写\nAI_CHAT_MODEL=文本模型名称\n\nEMBEDDING_BASE_URL=嵌入接口基础地址\nEMBEDDING_API_KEY=在本机填写\nAI_EMBEDDING_MODEL=嵌入模型名称"}</pre><p>嵌入服务地址及密钥留空时沿用文本服务配置。配置后进入资料库，为文档建立索引。更换嵌入模型后需要重新索引。</p><button className="outline" onClick={() => refresh().catch(e => setError(e.message))}>刷新运行状态</button></div><div className="settings-card"><h2>资料与答案的边界</h2><p>目录收录、学校认定和当年比赛要求应分别查证。历史附件无法证明当前报名时间。没有公开网址的本地资料显示文档标题与页码，系统不会编造网址。</p><p>支持含文字层 PDF、TXT、Markdown 与粘贴正文。单文件最多10MB、50页；扫描件暂不支持识别。</p></div></section>}
+        {tab === "settings" && <section className="settings"><ModelSettings onSaved={refresh} onEditState={modelEditChanged} /><div className="settings-card"><h2>当前运行状态</h2><dl><dt>文本模型</dt><dd>{status?.model.chatReady ? status.model.chatModel : "未配置 · 展示原文片段"}</dd><dt>嵌入模型</dt><dd>{status?.model.embeddingReady ? status.model.embeddingModel : "未配置 · 使用关键词检索"}</dd><dt>数据保存</dt><dd>本机 SQLite 数据库</dd></dl><p className="settings-note">配置状态表示参数齐全。实际连接结果会在提问和建立索引时检查。</p></div><div className="settings-card"><h2>资料与答案的边界</h2><p>目录收录、学校认定和当年比赛要求应分别查证。历史附件无法证明当前报名时间。没有公开网址的本地资料显示文档标题与页码，系统不会编造网址。</p><p>支持含文字层 PDF、TXT、Markdown 与粘贴正文。单文件最多10MB、50页；扫描件暂不支持识别。</p></div></section>}
       </div>
     </main>
     {importing && <div className="modal-backdrop"><section className="modal import-modal" role="dialog" aria-modal="true" aria-labelledby="import-title">
