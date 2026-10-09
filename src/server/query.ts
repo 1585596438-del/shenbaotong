@@ -52,7 +52,11 @@ export function planRetrieval(question: string, documents: KnowledgeDocument[], 
     const tracks = ["python", "java", "c/c++", "web", "网络安全", "软件测试"].filter(track => normalize(retrievalQuestion).includes(normalize(track)));
     if (tracks.length) candidates = candidates.filter(d => !normalize(d.competition || d.title).includes("蓝桥杯") || tracks.some(track => normalize(d.competition + d.title).includes(normalize(track))) || (/时间|日期|截止|赛程|报名/.test(current) && d.kind === "notice"));
   }
-  return { retrievalQuestion, previousQuestion, documents: candidates, topicMatched: !!targets.length || !!explicitNames.length };
+  // 赛事全名已用于限定来源；条款检索再突出用户实际询问的条件。
+  let focusQuestion = normalize(retrievalQuestion);
+  for (const name of [...new Set(explicitNames)].sort((a, b) => b.length - a.length)) focusQuestion = focusQuestion.replaceAll(normalize(name), " ");
+  focusQuestion = focusQuestion.replace(/20\d{2}年?/g, " ").trim();
+  return { retrievalQuestion, previousQuestion, documents: candidates, topicMatched: !!targets.length || !!explicitNames.length, focusQuestion: explicitNames.length ? focusQuestion : "" };
 }
 
 // 补齐短标题后紧邻的条款，不重新分块数据库，引用仍使用实际原文片段 ID。
